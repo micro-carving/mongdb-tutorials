@@ -4,6 +4,8 @@
 
 MongoDB 是一个文档数据库，旨在简化应用程序的开发和扩展。
 
+官网地址：https://www.mongodb.com/
+
 ## MongoDB 可以干什么？
 
 - 对数据查询并存储
@@ -110,3 +112,231 @@ db.articles.find({ "createdDate": { "$gte": ISODate("2021-01-01T00:00:00.000Z") 
 ```
 
 以上仅是 MongoDB 数据存储的基本概念和操作方法。
+
+
+
+# MongoDB CRUD Java 操作
+
+## 在 Java 应用程序中插入文档
+
+查看下面的代码，其中演示了如何将单个文档和多个文档插入到集合中。
+
+### 插入单个文档
+
+将单个文档插入集合中（如果数据库和集合不存在，会自动创建）：
+
+- 使用 `getCollection()` 方法访问 `MongoCollection` 对象，该对象用于表示指定的集合
+- 将 `insertOne()` 方法附加到 `collection` 对象
+- 在 `insertOne()` 的括号内，包含一个包含文档数据的对象
+- 打印出插入文档的 id
+
+```java
+public class CrudTests {
+
+    // 格式：[jdbc:]mongodb[+srv]://[{user:identifier}[:{password:param}]@]<\,,{host::localhost}?[:{port::27017}]>[/{database}?[\?<&,{:identifier}={:param}>]]
+    private static final String connectString = "mongodb://root:root@localhost:27017";
+
+    // ...
+
+    @Test
+    void testInsertOne() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            final MongoDatabase database = mongoClient.getDatabase("sample_training");
+            final MongoCollection<Document> collection = database.getCollection("inspections");
+
+            final Document inspection = new Document("_id", new ObjectId())
+                    .append("id", "10021-2015-ENFO")
+                    .append("certificate_number", 9278806)
+                    .append("business_name", "ATLIXCO DELI GROCERY INC.")
+                    .append("date", Date.from(LocalDate.of(2015, 2, 20).atStartOfDay(ZoneId.systemDefault()).toInstant()))
+                    .append("result", "No Violation Issued")
+                    .append("sector", "Cigarette Retail Dealer - 127")
+                    .append("address", new Document().append("city", "RIDGEWOOD").append("zip", 11385).append("street", "MENAHAN ST").append("number", 1712));
+            final InsertOneResult insertOneResult = collection.insertOne(inspection);
+            final BsonValue insertedId = insertOneResult.getInsertedId();
+            System.out.println(insertedId);
+        }
+    }
+}
+```
+
+输出结果如下：
+
+```text
+BsonObjectId{value=644b89cbbad0666fb329aa30}
+```
+
+### 插入多个文档
+
+将多个文档插入到集合中：
+
+- 将 `insertMany()` 方法附加到 `collection` 对象
+- 在 `insertMany()` 的括号内，包含一个包含文档数据的对象
+- 打印出插入文档的 id
+
+```java
+public class CrudTests {
+
+    // 格式：[jdbc:]mongodb[+srv]://[{user:identifier}[:{password:param}]@]<\,,{host::localhost}?[:{port::27017}]>[/{database}?[\?<&,{:identifier}={:param}>]]
+    private static final String connectString = "mongodb://root:root@localhost:27017";
+
+    // ...
+
+    @Test
+    void testInsertMany() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            final MongoDatabase database = mongoClient.getDatabase("bank");
+            final MongoCollection<Document> collection = database.getCollection("accounts");
+
+            final Document doc1 = new Document().append("account_holder", "john doe").append("account_id", "MDB99115881").append("balance", 1785).append("account_type", "checking");
+            final Document doc2 = new Document().append("account_holder", "jane doe").append("account_id", "MDB79101843").append("balance", 1468).append("account_type", "checking");
+
+            final InsertManyResult insertManyResult = collection.insertMany(Arrays.asList(doc1, doc2));
+            insertManyResult.getInsertedIds().forEach((k, v) -> System.out.println(k + " -> " + v.asObjectId()));
+        }
+    }
+}
+```
+
+## 在 Java 应用程序中查询 MongoDB 的 Collection
+
+查看下面的代码，它演示了如何使用 Java 在 MongoDB 中查询文档。
+
+### 使用 `find()`
+
+在下面的示例中，我们找到**余额大于或等于 1000 并且是支票帐户**的所有帐户。我们通过迭代 `MongoCursor` 来处理从 `find()`方法返回的每个文档。`find()` 方法接受查询筛选器并返回与集合中的筛选器匹配的文档。
+
+```java
+public class CrudTests {
+
+    // 格式：[jdbc:]mongodb[+srv]://[{user:identifier}[:{password:param}]@]<\,,{host::localhost}?[:{port::27017}]>[/{database}?[\?<&,{:identifier}={:param}>]]
+    private static final String connectString = "mongodb://root:root@localhost:27017";
+    
+    // ...
+    
+    @Test
+    void testFind() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            MongoDatabase database = mongoClient.getDatabase("bank");
+            MongoCollection<Document> collection = database.getCollection("accounts");
+            try (MongoCursor<Document> cursor = collection.find(Filters.and(Filters.gte("balance", 1000), Filters.eq("account_type", "checking")))
+                    .iterator()) {
+                while (cursor.hasNext()) {
+                    System.out.println(cursor.next().toJson());
+                }
+            }
+        }
+    }
+}
+```
+
+输出结果如下：
+
+```text
+{"_id": {"$oid": "644b7a20d633f972e812254b"}, "account_holder": "john doe", "account_id": "MDB99115881", "balance": 1785, "account_type": "checking"}
+{"_id": {"$oid": "644b7a20d633f972e812254c"}, "account_holder": "jane doe", "account_id": "MDB79101843", "balance": 1468, "account_type": "checking"}
+```
+
+### 使用 `find().first()`
+
+将 `find()` 和 `first()` 方法链接在一起，为传递给 `find()` 方法的查询过滤器查找第一个匹配的文档。在下面的示例中，我们从相同的查询返回一个文档。
+
+```java
+public class CrudTests {
+
+    // 格式：[jdbc:]mongodb[+srv]://[{user:identifier}[:{password:param}]@]<\,,{host::localhost}?[:{port::27017}]>[/{database}?[\?<&,{:identifier}={:param}>]]
+    private static final String connectString = "mongodb://root:root@localhost:27017";
+
+    // ...
+
+    @Test
+    void testFindFirst() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            MongoDatabase database = mongoClient.getDatabase("bank");
+            MongoCollection<Document> collection = database.getCollection("accounts");
+            final Document document = collection.find(Filters.and(Filters.gte("balance", 1000), Filters.eq("account_type", "checking"))).first();
+            assert document != null;
+            System.out.println(document.toJson());
+        }
+    }
+}
+```
+
+输出结果如下：
+
+```text
+{"_id": {"$oid": "644b7a20d633f972e812254b"}, "account_holder": "john doe", "account_id": "MDB99115881", "balance": 1785, "account_type": "checking"}
+```
+
+
+## 在 Java 应用程序中更新文档
+
+查看下面的代码，它演示了如何用 Java 更新 MongoDB 中的文档。
+
+### 使用 `updateOne()`
+
+为了更新单个文档，我们在一个 `MongoCollection` 对象上使用 `updateOne()` 方法。该方法接受与我们想要更新的文档匹配的过滤器，以及指示驱动程序如何更改匹配文档的更新语句。`updateOne()` 方法只更新与过滤器匹配的第一个文档。
+
+在下面的示例中，我们通过将特定帐户的余额增加 100 并将帐户状态设置为活动来更新一个文档：
+
+```java
+public class CrudTests {
+
+    // 格式：[jdbc:]mongodb[+srv]://[{user:identifier}[:{password:param}]@]<\,,{host::localhost}?[:{port::27017}]>[/{database}?[\?<&,{:identifier}={:param}>]]
+    private static final String connectString = "mongodb://root:root@localhost:27017";
+
+    // ...
+
+    @Test
+    void testUpdateOne() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            MongoDatabase database = mongoClient.getDatabase("bank");
+            MongoCollection<Document> collection = database.getCollection("accounts");
+            Bson query = Filters.eq("account_id", "MDB79101843");
+            Bson updates = Updates.combine(Updates.set("account_status", "active"), Updates.inc("balance", 100));
+            UpdateResult upResult = collection.updateOne(query, updates);
+            System.out.println(upResult);
+        }
+    }
+}
+```
+
+输出结果如下：
+
+```text
+AcknowledgedUpdateResult{matchedCount=1, modifiedCount=1, upsertedId=null}
+```
+
+### 使用 `updateMany()`
+
+为了更新多个文档，我们在一个 `MongoCollection` 对象上使用 `updateMany()` 方法。该方法接受与我们想要更新的文档匹配的过滤器，以及指示驱动程序如何更改匹配文档的更新语句。`updateMany()` 方法更新集合中与过滤器匹配的所有文档。
+
+在下面的示例中，我们通过向所有储蓄账户添加 100 的最低余额来更新许多文档：
+
+```java
+public class CrudTests {
+
+    // 格式：[jdbc:]mongodb[+srv]://[{user:identifier}[:{password:param}]@]<\,,{host::localhost}?[:{port::27017}]>[/{database}?[\?<&,{:identifier}={:param}>]]
+    private static final String connectString = "mongodb://root:root@localhost:27017";
+
+    // ...
+
+    @Test
+    void testUpdateMany() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            MongoDatabase database = mongoClient.getDatabase("bank");
+            MongoCollection<Document> collection = database.getCollection("accounts");
+            Bson query = Filters.eq("account_type", "checking");
+            Bson updates = Updates.combine(Updates.set("minimum_balance", 100));
+            UpdateResult upResult = collection.updateMany(query, updates);
+            System.out.println(upResult);
+        }
+    }
+}
+```
+
+输出结果如下：
+
+```text
+AcknowledgedUpdateResult{matchedCount=2, modifiedCount=1, upsertedId=null}
+```

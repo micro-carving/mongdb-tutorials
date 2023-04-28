@@ -24,6 +24,7 @@
         <mongodb.driver.sync.verison>4.9.1</mongodb.driver.sync.verison>
         <jackson.databind.version>2.12.3</jackson.databind.version>
         <jakarta.json-api.version>2.0.1</jakarta.json-api.version>
+        <junit-jupiter.version>5.9.2</junit-jupiter.version>
     </properties>
 
     <modules>
@@ -52,6 +53,13 @@
                 <groupId>jakarta.json</groupId>
                 <artifactId>jakarta.json-api</artifactId>
                 <version>${jakarta.json-api.version}</version>
+            </dependency>
+
+            <!-- junit 单元测试 -->
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>${junit-jupiter.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

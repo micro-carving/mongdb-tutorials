@@ -1,16 +1,16 @@
-package com.olinonee.mongodb.quickstart.test;
+package com.olinonee.mongodb.quickstart;
 
 import com.mongodb.client.*;
 import org.bson.Document;
 
 /**
- * 快速开始测试类
+ * MongoDB 快速开始
  *
  * @author olinH, olinone666@gmail.com
  * @version v1.0.0
- * @since 2023-04-26
+ * @since 2023-04-28
  */
-public class QuickstartTests {
+public class MongodbQuickstart {
 
     public static void main(String[] args) {
         // 格式：[jdbc:]mongodb[+srv]://[{user:identifier}[:{password:param}]@]<\,,{host::localhost}?[:{port::27017}]>[/{database}?[\?<&,{:identifier}={:param}>]]
