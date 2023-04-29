@@ -268,7 +268,6 @@ public class CrudTests {
 {"_id": {"$oid": "644b7a20d633f972e812254b"}, "account_holder": "john doe", "account_id": "MDB99115881", "balance": 1785, "account_type": "checking"}
 ```
 
-
 ## 在 Java 应用程序中更新文档
 
 查看下面的代码，它演示了如何用 Java 更新 MongoDB 中的文档。
@@ -340,3 +339,45 @@ public class CrudTests {
 ```text
 AcknowledgedUpdateResult{matchedCount=2, modifiedCount=1, upsertedId=null}
 ```
+
+
+## 在 Java 应用程序中删除文档
+
+查看下面的代码，它演示了如何用 Java 删除 MongoDB 中的文档。
+
+### 使用 `deleteOne()`
+
+为了从集合中删除单个文档，我们在一个 `MongoCollection` 对象上使用 `deleteOne()` 方法。该方法接受与我们要删除的文档匹配的查询筛选器。如果我们不指定过滤器，MongoDB 将匹配集合中的第一个文档。`deleteOne()` 方法只删除第一个匹配的文档。
+
+在下面的例子中，我们删除了一个属于 John Doe 账户的文档：
+
+```java
+public class CrudTests {
+
+    // 格式：[jdbc:]mongodb[+srv]://[{user:identifier}[:{password:param}]@]<\,,{host::localhost}?[:{port::27017}]>[/{database}?[\?<&,{:identifier}={:param}>]]
+    private static final String connectString = "mongodb://root:root@localhost:27017";
+
+    // ...
+
+    @Test
+    void testDeleteOne() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            MongoDatabase database = mongoClient.getDatabase("bank");
+            MongoCollection<Document> collection = database.getCollection("accounts");
+            Bson query = Filters.eq("account_holder", "john doe");
+            DeleteResult delResult = collection.deleteOne(query);
+            System.out.println("Deleted a document:\t" + delResult.getDeletedCount());
+        }
+    }
+}
+```
+
+输出结果如下：
+
+```text
+Deleted a document:	1
+```
+
+### 对查询对象使用 `deleteMany()`
+
+### 使用带有查询过滤器的 `deleteMany()`

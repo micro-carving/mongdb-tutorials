@@ -3,6 +3,7 @@ package com.olinonee.mongodb.quickstart.test;
 import com.mongodb.client.*;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Updates;
+import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.InsertManyResult;
 import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.client.result.UpdateResult;
@@ -111,6 +112,17 @@ public class CrudTests {
             Bson updates = Updates.combine(Updates.set("minimum_balance", 100));
             UpdateResult upResult = collection.updateMany(query, updates);
             System.out.println(upResult);
+        }
+    }
+
+    @Test
+    void testDeleteOne() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            MongoDatabase database = mongoClient.getDatabase("bank");
+            MongoCollection<Document> collection = database.getCollection("accounts");
+            Bson query = Filters.eq("account_holder", "john doe");
+            DeleteResult delResult = collection.deleteOne(query);
+            System.out.println("Deleted a document:\t" + delResult.getDeletedCount());
         }
     }
 }
