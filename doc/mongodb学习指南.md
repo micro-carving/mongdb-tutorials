@@ -113,8 +113,6 @@ db.articles.find({ "createdDate": { "$gte": ISODate("2021-01-01T00:00:00.000Z") 
 
 以上仅是 MongoDB 数据存储的基本概念和操作方法。
 
-
-
 # MongoDB CRUD Java 操作
 
 ## 在 Java 应用程序中插入文档
@@ -340,7 +338,6 @@ public class CrudTests {
 AcknowledgedUpdateResult{matchedCount=2, modifiedCount=1, upsertedId=null}
 ```
 
-
 ## 在 Java 应用程序中删除文档
 
 查看下面的代码，它演示了如何用 Java 删除 MongoDB 中的文档。
@@ -380,4 +377,154 @@ Deleted a document:	1
 
 ### 对查询对象使用 `deleteMany()`
 
+要在一次操作中从一个集合中删除多个文档，我们在一个 `MongoCollection` 对象上调用 `deleteMany()` 方法。为了指定要删除哪些文档，我们传递了一个查询过滤器，该过滤器与我们想要删除的文档相匹配。如果我们提供一个空文档，MongoDB 将匹配集合中的所有文档并删除它们。
+
+为了演示批量删除的数据过程，我这里准备了一些测试的 JSON 数据，可以参考 [accounts_documents_template](./../scripts/accounts_documents_template.json) 案例数据。
+
+在下面的示例中，我们使用查询对象删除 `state` 为 "TN" 帐户。然后，我们打印被删除文档的总数。
+
+```java
+public class CrudTests {
+
+    // 格式：[jdbc:]mongodb[+srv]://[{user:identifier}[:{password:param}]@]<\,,{host::localhost}?[:{port::27017}]>[/{database}?[\?<&,{:identifier}={:param}>]]
+    private static final String connectString = "mongodb://root:root@localhost:27017";
+
+    // ...
+
+    @Test
+    void testDeleteManyWithQueryObject() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            MongoDatabase database = mongoClient.getDatabase("bank");
+            MongoCollection<Document> collection = database.getCollection("accounts_doc_template");
+            Bson query = Filters.eq("state", "TN");
+            DeleteResult delResult = collection.deleteMany(query);
+            System.out.println("Deleted document‘s counts are:\t" + delResult.getDeletedCount());
+        }
+    }
+}
+```
+
+输出结果如下：
+
+```text
+Deleted document‘s counts are:	25
+```
+
 ### 使用带有查询过滤器的 `deleteMany()`
+
+要在一次操作中从一个集合中删除多个文档，我们在一个 `MongoCollection` 对象上调用 `deleteMany()` 方法。为了指定要删除哪些文档，我们传递了一个查询过滤器，该过滤器与我们想要删除的文档相匹配。如果我们提供一个空文档，MongoDB 将匹配集合中的所有文档并删除它们。
+
+在下面的示例中，我们使用查询对象删除 `state` 为 "VA" 帐户。然后，我们打印被删除文档的总数。
+
+```java
+public class CrudTests {
+
+    // 格式：[jdbc:]mongodb[+srv]://[{user:identifier}[:{password:param}]@]<\,,{host::localhost}?[:{port::27017}]>[/{database}?[\?<&,{:identifier}={:param}>]]
+    private static final String connectString = "mongodb://root:root@localhost:27017";
+
+    // ...
+
+    @Test
+    void testDeleteManyWithQueryFilter() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            MongoDatabase database = mongoClient.getDatabase("bank");
+            MongoCollection<Document> collection = database.getCollection("accounts_doc_template");
+            DeleteResult delResult = collection.deleteMany(Filters.eq("state", "VA"));
+            System.out.println("Deleted document‘s counts are:\t" + delResult.getDeletedCount());
+        }
+    }
+}
+```
+
+输出结果如下：
+
+```text
+Deleted document‘s counts are:	16
+```
+
+> **说明**
+> 
+> 关于文档批量删除，对查询对象使用 `deleteMany()` 和使用带有查询过滤器的 `deleteMany()` 本质上是一样的，只是叫法不一样而已。
+
+
+## 在 Java 应用中创建 MongoDB 事务
+
+查看下面的代码，它演示了如何用 Java 在 MongoDB 中创建多文档事务。
+
+### 创建事务
+
+为了启动事务，我们使用会话的 `WithTransaction()` 方法。然后，我们定义要在事务内部执行的操作序列。以下是完成多文档事务的步骤，然后是代码：
+
+1. 开始一个新的会话；
+2. 使用会话上的 `WithTransaction()` 方法开始事务；
+3. 创建将在事务中使用的变量；
+4. 获取将在事务中使用的用户帐户信息；
+5. 创建 `transfers` 文档；
+6. 更新用户帐号；
+7. 插入 `transfer` 文档；
+8. 提交事务。
+
+为了模拟转账的事务流程，请添加对应的测试数据，可以参考：[accounts](./../scripts/accounts.json) 案例数据，下面的代码演示了这些步骤：
+
+```java
+public class CrudTests {
+
+    // 格式：[jdbc:]mongodb[+srv]://[{user:identifier}[:{password:param}]@]<\,,{host::localhost}?[:{port::27017}]>[/{database}?[\?<&,{:identifier}={:param}>]]
+    private static final String connectString = "mongodb://root:root@localhost:27017";
+
+    // ...
+
+    @Test
+    void testTransaction() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            final ClientSession clientSession = mongoClient.startSession();
+
+            final TransactionBody<String> transactionBody = () -> {
+                MongoCollection<Document> bankingCollection = mongoClient.getDatabase("bank").getCollection("accounts");
+
+                // 提取
+                Bson fromAccount = Filters.eq("account_id", "MDB310054629");
+                Bson withdrawal = Updates.inc("balance", -200);
+
+                // 存入
+                Bson toAccount = Filters.eq("account_id", "MDB643731035");
+                Bson deposit = Updates.inc("balance", 200);
+
+                System.out.println("This is from Account " + fromAccount.toBsonDocument().toJson() + " withdrawn " + withdrawal.toBsonDocument().toJson());
+                System.out.println("This is to Account " + toAccount.toBsonDocument().toJson() + " deposited " + deposit.toBsonDocument().toJson());
+                bankingCollection.updateOne(clientSession, fromAccount, withdrawal);
+                bankingCollection.updateOne(clientSession, toAccount, deposit);
+
+                return "Transferred funds from John Doe to Mary Doe";
+            };
+
+            try {
+                // 开启事务
+                clientSession.withTransaction(transactionBody);
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                clientSession.close();
+            }
+        }
+    }
+}
+```
+
+输出结果如下：
+
+```text
+This is from Account {"account_id": "MDB310054629"} withdrawn {"$inc": {"balance": -200}}
+This is to Account {"account_id": "MDB643731035"} deposited {"$inc": {"balance": 200}}
+com.mongodb.MongoClientException: This MongoDB deployment does not support retryable writes. Please add retryWrites=false to your connection string.
+...
+
+Caused by: com.mongodb.MongoCommandException: Command failed with error 20 (IllegalOperation): 'Transaction numbers are only allowed on a replica set member or mongos' on server localhost:27017. The full response is {"ok": 0.0, "errmsg": "Transaction numbers are only allowed on a replica set member or mongos", "code": 20, "codeName": "IllegalOperation"}
+```
+
+从输出结果看出，事务发生了异常，经过搜索查询得出 “单节点 mongo 是不支持事务的，所以需要配置 mongo 副本集（Replica Set）”。有如下 2 种解决方案：
+
+1. 配置集群分片（Sharding）模式，不要使用单节点；
+2. 为单节点配置副本集；
+
+

@@ -125,4 +125,60 @@ public class CrudTests {
             System.out.println("Deleted a document:\t" + delResult.getDeletedCount());
         }
     }
+
+    @Test
+    void testDeleteManyWithQueryObject() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            MongoDatabase database = mongoClient.getDatabase("bank");
+            MongoCollection<Document> collection = database.getCollection("accounts_doc_template");
+            Bson query = Filters.eq("state", "TN");
+            DeleteResult delResult = collection.deleteMany(query);
+            System.out.println("Deleted document‘s counts are:\t" + delResult.getDeletedCount());
+        }
+    }
+
+    @Test
+    void testDeleteManyWithQueryFilter() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            MongoDatabase database = mongoClient.getDatabase("bank");
+            MongoCollection<Document> collection = database.getCollection("accounts_doc_template");
+            DeleteResult delResult = collection.deleteMany(Filters.eq("state", "VA"));
+            System.out.println("Deleted document‘s counts are:\t" + delResult.getDeletedCount());
+        }
+    }
+
+    @Test
+    void testTransaction() {
+        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+            final ClientSession clientSession = mongoClient.startSession();
+
+            final TransactionBody<String> transactionBody = () -> {
+                MongoCollection<Document> bankingCollection = mongoClient.getDatabase("bank").getCollection("accounts");
+
+                // 提取
+                Bson fromAccount = Filters.eq("account_id", "MDB310054629");
+                Bson withdrawal = Updates.inc("balance", -200);
+
+                // 存入
+                Bson toAccount = Filters.eq("account_id", "MDB643731035");
+                Bson deposit = Updates.inc("balance", 200);
+
+                System.out.println("This is from Account " + fromAccount.toBsonDocument().toJson() + " withdrawn " + withdrawal.toBsonDocument().toJson());
+                System.out.println("This is to Account " + toAccount.toBsonDocument().toJson() + " deposited " + deposit.toBsonDocument().toJson());
+                bankingCollection.updateOne(clientSession, fromAccount, withdrawal);
+                bankingCollection.updateOne(clientSession, toAccount, deposit);
+
+                return "Transferred funds from John Doe to Mary Doe";
+            };
+
+            try {
+                // 开启事务
+                clientSession.withTransaction(transactionBody);
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                clientSession.close();
+            }
+        }
+    }
 }

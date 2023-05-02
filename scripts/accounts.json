@@ -1,0 +1,29 @@
+[
+  {
+    "_id": "644b7a20d633f972e812254c",
+    "account_holder": "jane doe",
+    "account_id": "MDB79101843",
+    "account_status": "active",
+    "account_type": "checking",
+    "balance": "1568",
+    "minimum_balance": "100"
+  },
+  {
+    "_id": "6450d7f0f2312d73069944e4",
+    "account_holder": "john doe",
+    "account_id": "MDB310054629",
+    "account_status": "",
+    "account_type": "checking",
+    "balance": "1785",
+    "minimum_balance": ""
+  },
+  {
+    "_id": "6450d7f0f2312d73069944e5",
+    "account_holder": "mary doe",
+    "account_id": "MDB643731035",
+    "account_status": "",
+    "account_type": "checking",
+    "balance": "1468",
+    "minimum_balance": ""
+  }
+]
