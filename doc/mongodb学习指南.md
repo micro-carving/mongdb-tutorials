@@ -470,17 +470,17 @@ Deleted document‘s counts are:	16
 public class CrudTests {
 
     // 格式：[jdbc:]mongodb[+srv]://[{user:identifier}[:{password:param}]@]<\,,{host::localhost}?[:{port::27017}]>[/{database}?[\?<&,{:identifier}={:param}>]]
-    private static final String connectString = "mongodb://root:root@localhost:27017";
+    private static final String txConnectString = "mongodb://localhost:27020/retryWrites=false";
 
     // ...
 
     @Test
     void testTransaction() {
-        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+        try (MongoClient mongoClient = MongoClients.create(txConnectString)) {
             final ClientSession clientSession = mongoClient.startSession();
 
             final TransactionBody<String> transactionBody = () -> {
-                MongoCollection<Document> bankingCollection = mongoClient.getDatabase("bank").getCollection("accounts");
+                MongoCollection<Document> bankingCollection = mongoClient.getDatabase("bank").getCollection("accounts_test");
 
                 // 提取
                 Bson fromAccount = Filters.eq("account_id", "MDB310054629");
@@ -525,6 +525,19 @@ Caused by: com.mongodb.MongoCommandException: Command failed with error 20 (Ille
 从输出结果看出，事务发生了异常，经过搜索查询得出 “单节点 mongo 是不支持事务的，所以需要配置 mongo 副本集（Replica Set）”。有如下 2 种解决方案：
 
 1. 配置集群分片（Sharding）模式，不要使用单节点；
-2. 为单节点配置副本集；
+2. 为单节点配置副本集（Replica Set）；
 
+具体参考文档：[mongodb环境搭建指南](mongodb环境搭建指南.md)中的『基于 Docker 搭建 MongoDB 集群』内容。
 
+如果完成集群搭建后输出结果如下：
+
+```text
+This is from Account {"account_id": "MDB310054629"} withdrawn {"$inc": {"balance": -200}}
+This is to Account {"account_id": "MDB643731035"} deposited {"$inc": {"balance": 200}}
+```
+
+根据输出的结果可以看出，对应的数据有执行成功！
+
+> **注意**
+> 
+> `Updates.inc` 原子性新增方法使用的字段类型不能为 `String` 类型，否则提示错误！

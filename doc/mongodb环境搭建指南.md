@@ -83,9 +83,10 @@ docker exec -it mongodb mongosh
 ![进入mongodb容器](./assets/进入mongodb容器.png)
 
 > **注意**
-> 
-> 假如在执行 `show collections;` 命令，控制台提示 **MongoServerError: command listCollections requires authentication** 异常信息，一般解决方案是未进行身份认证。有如下 2 种解决方案：
-> 
+>
+> 假如在执行 `show collections;` 命令，控制台提示 **MongoServerError: command listCollections requires authentication**
+> 异常信息，一般解决方案是未进行身份认证。有如下 2 种解决方案：
+>
 > - 通过 `docker exec -it mongodb mongosh -u [用户名] -p [用户密码]` 方式进入容器并重新执行命令；
 > - 为该对应的数据库 `admin` 中通过创建一个用户，并赋予用户 `root` 权限，命令如下：
 > ```shell
@@ -103,7 +104,8 @@ docker exec -it mongodb mongosh -u root -p root
 
 ### 验证是否启动成功
 
-通过可视化工具（我这里使用的 **Navicat**，当然也可以使用 **MongoDB Compass**，推荐使用 **MongoDB Compass** 后续方便 JSON 批量测试数据导入）连接 mongodb 进行测试，如出现截图信息表示启动成功！
+通过可视化工具（我这里使用的 **Navicat**，当然也可以使用 **MongoDB Compass**，推荐使用 **MongoDB Compass** 后续方便 JSON 批量测试数据导入）连接 mongodb
+进行测试，如出现截图信息表示启动成功！
 
 - Navicat 下连接
 
@@ -183,6 +185,278 @@ docker network rm mongodb
 docker rm mongodb
 ```
 
+# 基于 Docker 搭建 MongoDB 集群
+
+## 副本集模式（win10）
+
+### 启动三个容器
+
+```shell
+docker run --name mongodb0 --network mongodb -p 27020:27017 -v D:/DockerDesktop/docker-container-workspace/mongodb0/data:/data/db -d mongo:6.0.5 --replSet rs0
+docker run --name mongodb1 --network mongodb -p 27021:27017 -v D:/DockerDesktop/docker-container-workspace/mongodb1/data:/data/db -d mongo:6.0.5 --replSet rs0
+docker run --name mongodb2 --network mongodb -p 27022:27017 -v D:/DockerDesktop/docker-container-workspace/mongodb2/data:/data/db -d mongo:6.0.5 --replSet rs0
+```
+
+### 进入主容器
+
+```shell
+docker exec -it mongodb0 bash
+mongosh
+```
+或者
+```shell
+docker exec -it mongodb0 mongosh
+```
+
+输出结果如下：
+
+```text
+Current Mongosh Log ID: 645233708df8459a3e3979c5
+Connecting to:          mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+1.8.0
+Using MongoDB:          6.0.5
+Using Mongosh:          1.8.0
+
+For mongosh info see: https://docs.mongodb.com/mongodb-shell/
+
+
+To help improve our products, anonymous usage data is collected and sent to MongoDB periodically (https://www.mongodb.com/legal/privacy-policy).
+You can opt-out by running the disableTelemetry() command.
+
+------
+   The server generated these startup warnings when booting
+   2023-05-03T10:11:21.052+00:00: Access control is not enabled for the database. Read and write access to data and configuration is unrestricted
+   2023-05-03T10:11:21.052+00:00: /sys/kernel/mm/transparent_hugepage/enabled is 'always'. We suggest setting it to 'never'
+   2023-05-03T10:11:21.052+00:00: vm.max_map_count is too low
+------
+
+------
+   Enable MongoDB's free cloud-based monitoring service, which will then receive and display
+   metrics about your deployment (disk utilization, CPU, operation statistics, etc).
+
+   The monitoring data will be available on a MongoDB website with a unique URL accessible to you
+   and anyone you share the URL with. MongoDB may use this information to make product
+   improvements and to suggest MongoDB products and deployment options to you.
+
+   To enable free monitoring, run the following command: db.enableFreeMonitoring()
+   To permanently disable this reminder, run the following command: db.disableFreeMonitoring()
+------
+```
+
+### 设置主节点
+
+```shell
+rs.initiate()
+```
+
+输出结果如下：
+
+```text
+{
+  info2: 'no configuration specified. Using a default configuration for the set',
+  me: '6e34e7bd27b2:27017',
+  ok: 1
+}
+```
+
+### 添加副节点
+
+```shell
+rs.add('mongodb1:27017')
+rs.add({host:'mongodb2:27017', priority:0})
+```
+
+输出结果如下：
+
+```text
+rs0 [direct: other] test> rs.add('mongodb1:27017')
+{
+  ok: 1,
+  '$clusterTime': {
+    clusterTime: Timestamp({ t: 1683108741, i: 1 }),
+    signature: {
+      hash: Binary(Buffer.from("0000000000000000000000000000000000000000", "hex"), 0),
+      keyId: Long("0")
+    }
+  },
+  operationTime: Timestamp({ t: 1683108741, i: 1 })
+}
+
+rs0 [direct: primary] test> rs.add({host:'mongodb2:27017', priority:0})
+{
+  ok: 1,
+  '$clusterTime': {
+    clusterTime: Timestamp({ t: 1683108753, i: 1 }),
+    signature: {
+      hash: Binary(Buffer.from("0000000000000000000000000000000000000000", "hex"), 0),
+      keyId: Long("0")
+    }
+  },
+  operationTime: Timestamp({ t: 1683108753, i: 1 })
+}
+```
+
+### 查看副本集状态
+
+```shell
+rs.status()
+```
+
+输出结果如下：
+
+```text
+rs0 [direct: primary] test> rs.status()
+{
+  set: 'rs0',
+  date: ISODate("2023-05-03T10:13:00.743Z"),
+  myState: 1,
+  term: Long("1"),
+  syncSourceHost: '',
+  syncSourceId: -1,
+  heartbeatIntervalMillis: Long("2000"),
+  majorityVoteCount: 2,
+  writeMajorityCount: 2,
+  votingMembersCount: 3,
+  writableVotingMembersCount: 3,
+  optimes: {
+    lastCommittedOpTime: { ts: Timestamp({ t: 1683108780, i: 1 }), t: Long("1") },
+    lastCommittedWallTime: ISODate("2023-05-03T10:13:00.720Z"),
+    readConcernMajorityOpTime: { ts: Timestamp({ t: 1683108780, i: 1 }), t: Long("1") },
+    appliedOpTime: { ts: Timestamp({ t: 1683108780, i: 1 }), t: Long("1") },
+    durableOpTime: { ts: Timestamp({ t: 1683108770, i: 1 }), t: Long("1") },
+    lastAppliedWallTime: ISODate("2023-05-03T10:13:00.720Z"),
+    lastDurableWallTime: ISODate("2023-05-03T10:12:50.719Z")
+  },
+  lastStableRecoveryTimestamp: Timestamp({ t: 1683108730, i: 1 }),
+  electionCandidateMetrics: {
+    lastElectionReason: 'electionTimeout',
+    lastElectionDate: ISODate("2023-05-03T10:12:10.622Z"),
+    electionTerm: Long("1"),
+    lastCommittedOpTimeAtElection: { ts: Timestamp({ t: 1683108730, i: 1 }), t: Long("-1")
+    lastSeenOpTimeAtElection: { ts: Timestamp({ t: 1683108730, i: 1 }), t: Long("-1") },
+    numVotesNeeded: 1,
+    priorityAtElection: 1,
+    electionTimeoutMillis: Long("10000"),
+    newTermStartDate: ISODate("2023-05-03T10:12:10.704Z"),
+    wMajorityWriteAvailabilityDate: ISODate("2023-05-03T10:12:10.719Z")
+  },
+  members: [
+    {
+      _id: 0,
+      name: '6e34e7bd27b2:27017',
+      health: 1,
+      state: 1,
+      stateStr: 'PRIMARY',
+      uptime: 102,
+      optime: { ts: Timestamp({ t: 1683108780, i: 1 }), t: Long("1") },
+      optimeDate: ISODate("2023-05-03T10:13:00.000Z"),
+      lastAppliedWallTime: ISODate("2023-05-03T10:13:00.720Z"),
+      lastDurableWallTime: ISODate("2023-05-03T10:12:50.719Z"),
+      syncSourceHost: '',
+      syncSourceId: -1,
+      infoMessage: 'Could not find member to sync from',
+      electionTime: Timestamp({ t: 1683108730, i: 2 }),
+      electionDate: ISODate("2023-05-03T10:12:10.000Z"),
+      configVersion: 5,
+      configTerm: 1,
+      self: true,
+      lastHeartbeatMessage: ''
+    },
+    {
+      _id: 1,
+      name: 'mongodb1:27017',
+      health: 1,
+      state: 2,
+      stateStr: 'SECONDARY',
+      uptime: 39,
+      optime: { ts: Timestamp({ t: 1683108770, i: 1 }), t: Long("1") },
+      optimeDurable: { ts: Timestamp({ t: 1683108770, i: 1 }), t: Long("1") },
+      optimeDate: ISODate("2023-05-03T10:12:50.000Z"),
+      optimeDurableDate: ISODate("2023-05-03T10:12:50.000Z"),
+      lastAppliedWallTime: ISODate("2023-05-03T10:13:00.720Z"),
+      lastDurableWallTime: ISODate("2023-05-03T10:13:00.720Z"),
+      lastHeartbeat: ISODate("2023-05-03T10:12:59.647Z"),
+      lastHeartbeatRecv: ISODate("2023-05-03T10:12:59.670Z"),
+      pingMs: Long("0"),
+      lastHeartbeatMessage: '',
+      syncSourceHost: '6e34e7bd27b2:27017',
+      syncSourceId: 0,
+      infoMessage: '',
+      configVersion: 5,
+      configTerm: 1
+    },
+    {
+      _id: 2,
+      name: 'mongodb2:27017',
+      health: 1,
+      state: 2,
+      stateStr: 'SECONDARY',
+      uptime: 27,
+      optime: { ts: Timestamp({ t: 1683108770, i: 1 }), t: Long("1") },
+      optimeDurable: { ts: Timestamp({ t: 1683108770, i: 1 }), t: Long("1") },
+      optimeDate: ISODate("2023-05-03T10:12:50.000Z"),
+      optimeDurableDate: ISODate("2023-05-03T10:12:50.000Z"),
+      lastAppliedWallTime: ISODate("2023-05-03T10:13:00.720Z"),
+      lastDurableWallTime: ISODate("2023-05-03T10:13:00.720Z"),
+      lastHeartbeat: ISODate("2023-05-03T10:12:59.646Z"),
+      lastHeartbeatRecv: ISODate("2023-05-03T10:13:00.150Z"),
+      pingMs: Long("0"),
+      lastHeartbeatMessage: '',
+      syncSourceHost: 'mongodb1:27017',
+      syncSourceId: 1,
+      infoMessage: '',
+      configVersion: 5,
+      configTerm: 1
+    }
+  ],
+  ok: 1,
+  '$clusterTime': {
+    clusterTime: Timestamp({ t: 1683108780, i: 1 }),
+    signature: {
+      hash: Binary(Buffer.from("0000000000000000000000000000000000000000", "hex"), 0),
+      keyId: Long("0")
+    }
+  },
+  operationTime: Timestamp({ t: 1683108780, i: 1 })
+}
+```
+
+### 验证一下
+
+向主节点中插入一条数据
+
+```shell
+db.name.insertOne({"name":"hello,world"})
+```
+
+输出结果如下：
+
+```text
+{
+  acknowledged: true,
+  insertedId: ObjectId("645233b7a788cd57c91ab768")
+}
+```
+
+在副节点中查看数据
+
+```shell
+# 进入副节点
+docker exec -it mongodb1 mongosh
+
+# 允许从主节点中读取数据
+db.getMongo().setReadPref("secondary")
+# 查询 name
+db.name.find()
+```
+
+输出如下
+
+```text
+rs0 [direct: secondary] test> db.getMongo().setReadPref("secondary")
+
+rs0 [direct: secondary] test> db.name.find()
+[ { _id: ObjectId("645233b7a788cd57c91ab768"), name: 'hello,world' } ]
+```
 
 # MongoDB Compass 可视化工具
 
@@ -202,7 +476,7 @@ docker rm mongodb
 
 ![MongoDBCompassGUI](./assets/MongoDBCompassGUI.png)
 
-## 连接 MongoDB 
+## 连接 MongoDB
 
 输入 URI `mongodb://root:root@localhost:27017`，点击 **connect** 即可！
 
@@ -225,7 +499,7 @@ docker rm mongodb
 ![MongoDBDatabaseConfig](./assets/MongoDBDatabaseConfig.png)
 
 > **注意**
-> 
+>
 > 如果你通过 MongoDBCompass GUI 工具只能看到部分的数据库，那是因为用户对应的权限不足，我这里通过 Navicat 进行查看的。
 
 ![MongoDBAuth](./assets/MongoDBAuth.png)
@@ -239,7 +513,7 @@ docker rm mongodb
 ![MongoDBCompassCreateDB](./assets/MongoDBCompassCreateDB.png)
 
 > **说明**
-> 
+>
 > 如果你想建一个集合不知道选什么类型，截图中出现的三个复选框可以不用勾选。
 
 ### 新建集合

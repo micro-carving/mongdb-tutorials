@@ -31,6 +31,8 @@ public class CrudTests {
 
     // 格式：[jdbc:]mongodb[+srv]://[{user:identifier}[:{password:param}]@]<\,,{host::localhost}?[:{port::27017}]>[/{database}?[\?<&,{:identifier}={:param}>]]
     private static final String connectString = "mongodb://root:root@localhost:27017";
+    // private static final String txConnectString = "mongodb://root:root@localhost:27017/admin?retryWrites=false";
+    private static final String txConnectString = "mongodb://localhost:27020/retryWrites=false";
 
     @Test
     void testInsertOne() {
@@ -149,11 +151,11 @@ public class CrudTests {
 
     @Test
     void testTransaction() {
-        try (MongoClient mongoClient = MongoClients.create(connectString)) {
+        try (MongoClient mongoClient = MongoClients.create(txConnectString)) {
             final ClientSession clientSession = mongoClient.startSession();
 
             final TransactionBody<String> transactionBody = () -> {
-                MongoCollection<Document> bankingCollection = mongoClient.getDatabase("bank").getCollection("accounts");
+                MongoCollection<Document> bankingCollection = mongoClient.getDatabase("bank").getCollection("accounts_test");
 
                 // 提取
                 Bson fromAccount = Filters.eq("account_id", "MDB310054629");

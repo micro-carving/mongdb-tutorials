@@ -5,8 +5,8 @@
     "account_id": "MDB79101843",
     "account_status": "active",
     "account_type": "checking",
-    "balance": "1568",
-    "minimum_balance": "100"
+    "balance": 1568,
+    "minimum_balance": 100
   },
   {
     "_id": "6450d7f0f2312d73069944e4",
@@ -14,8 +14,8 @@
     "account_id": "MDB310054629",
     "account_status": "",
     "account_type": "checking",
-    "balance": "1785",
-    "minimum_balance": ""
+    "balance": 1785,
+    "minimum_balance": 100
   },
   {
     "_id": "6450d7f0f2312d73069944e5",
@@ -23,7 +23,7 @@
     "account_id": "MDB643731035",
     "account_status": "",
     "account_type": "checking",
-    "balance": "1468",
-    "minimum_balance": ""
+    "balance": 1468,
+    "minimum_balance": 0
   }
 ]
