@@ -286,8 +286,246 @@ Movie [
 
 - 插入多个文档
 
+```shell
+coll.insertMany(
+    Arrays.asList(
+            new Document("title", "Dangal").append("rating", "Not Rated"),
+            new Document("title", "The Boss Baby").append("rating", "PG")));
+```
 
-- 
+- 更新单个文档
+
+```shell
+coll.updateOne(
+        Filters.eq("title", "Amadeus"),
+        Updates.set("imdb.rating", 9.5));
+```
+
+```text
+{ title: 'Amadeus', imdb: { rating: 9.5, ... } }
+```
+
+- 更新多个文档
+
+```shell
+coll.updateMany(
+        Filters.eq("year", 2001),
+        Updates.inc("imdb.votes", 100));
+```
+
+```text
+[
+  { title: 'A Beautiful Mind', year: 2001, imdb: { votes: 826257, ... },
+  { title: 'Shaolin Soccer', year: 2001, imdb: { votes: 65442, ... },
+  ...
+]
+```
+
+- 在文档中更新数组
+
+```shell
+coll.updateOne(
+        Filters.eq("title", "Cosmos"),
+        Updates.push("genres", "Educational"));
+```
+
+```text
+{ title: 'Cosmos', genres: [ 'Documentary', 'Educational' ], ...}
+```
+
+- 文档替换
+
+```shell
+coll.replaceOne(
+        Filters.and(Filters.eq("name", "Deli Llama"), Filters.eq("address", "2 Nassau St")),
+        new Document("name", "Lord of the Wings").append("zipcode", 10001));
+```
+
+```text
+{ name: 'Lord of the Wings', zipcode: 10001 }
+```
+
+- 删除单个文档
+
+```text
+coll.deleteOne(Filters.eq("title", "Congo"));
+```
+
+- 删除多个文档
+
+```shell
+coll.deleteMany(Filters.regex("title", "^Shark.*"));
+```
+
+- 批量写入
+
+```shell
+coll.bulkWrite(
+        Arrays.asList(
+               new InsertOneModel<Document>(
+                       new Document().append("title", "A New Movie").append("year", 2022)),
+               new DeleteManyModel<Document>(
+                       Filters.lt("year", 1970))));
+```
+
+- 查看变更
+
+```shell
+coll.watch(Arrays.asList(
+        Aggregates.match(Filters.gte("year", 2022))));
+```
+
+- 通过游标迭代器访问数据
+
+```shell
+MongoCursor<Document> cursor = coll.find().cursor();
+while (cursor.hasNext()) {
+    System.out.println(cursor.next().toJson());
+}
+```
+
+```text
+[
+  { title: '2001: A Space Odyssey', ... },
+  { title: 'The Sound of Music', ... },
+  ...
+]
+```
+
+- 以数组形式访问查询的结果
+
+```shell
+List<Document> resultList = new ArrayList<Document>();
+coll.find().into(resultList);
+```
+
+```text
+[
+  { title: '2001: A Space Odyssey', ... },
+  { title: 'The Sound of Music', ... },
+  ...
+]
+```
+
+- 文档计数
+
+```shell
+coll.countDocuments(Filters.eq("year", 2000));
+```
+
+```text
+618
+```
+
+- 列出不同的文档或字段值
+
+```shell
+coll.distinct("year", Integer.class);
+```
+
+```text
+[ 1891, 1893, 1894, 1896, 1903, ... ]
+```
+
+- 限制检索文档的数量
+
+```shell
+coll.find().limit(2);
+```
+
+```text
+[
+  { title: 'My Neighbor Totoro', ... },
+  { title: 'Amélie', ... }
+]
+```
+
+- 跳过检索文档
+
+```shell
+coll.find(Filters.regex("title", "^Rocky")).skip(2);
+```
+
+```text
+[
+  { title: 'Rocky III', ... },
+  { title: 'Rocky IV', ... },
+  { title: 'Rocky V', ... }
+]
+```
+
+- 检索文档时对文档进行排序
+
+```shell
+coll.find().sort(Sorts.ascending("year"));
+```
+
+```text
+[
+  { title: 'Newark Athlete', year: 1891, ... },
+  { title: 'Blacksmith Scene', year: 1893, ...},
+  { title: 'Dickson Experimental Sound Film', year: 1894},
+  ...
+]
+```
+
+- 检索项目文档字段
+
+```shell
+coll.find().projection(Projections.fields(
+       Projections.excludeId(),
+       Projections.include("year", "imdb")));
+```
+
+```text
+[
+  { year: 2012, imdb: { rating: 5.8, votes: 230, id: 8256 }},
+  { year: 1985, imdb: { rating: 7.0, votes: 447, id: 1654 }},
+  ...
+]
+```
+
+- 创建索引
+
+```shell
+coll.createIndex(
+        Indexes.compoundIndex(
+                Indexes.ascending("title"),
+                Indexes.descending("year")));
+```
+
+- 文本搜索
+
+```shell
+// only searches fields with text indexes
+coll.find(Filters.text("zissou"));
+```
+
+```text
+[
+  { title: 'The Life Aquatic with Steve Zissou', ... }
+]
+```
+
+- 用 Maven 安装驱动依赖
+
+```xml
+<dependencies>
+  <dependency>
+    <groupId>org.mongodb</groupId>
+    <artifactId>mongodb-driver-sync</artifactId>
+    <version>4.9.1</version>
+  </dependency>
+</dependencies>
+```
+
+- 用 Gradle 安装驱动依赖
+
+```gradle
+dependencies {
+  implementation 'org.mongodb:mongodb-driver-sync:4.9.1'
+}
+```
 
 ## 响应式流
 
