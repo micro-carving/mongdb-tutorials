@@ -527,6 +527,31 @@ dependencies {
 }
 ```
 
+### 使用案例
+
+#### 概述
+
+使用示例为流行的 MongoDB 操作提供了方便的起点。每个示例都提供了以下信息：
+
+- 示例中的操作说明，显示了该方法的目的和示例用例
+- 关于如何使用该操作的说明，包括参数、返回值和可能遇到的常见异常
+- 一个完整的 Java 类，你可以复制并粘贴它，以便在自己的环境中运行示例
+
+##### 如何使用用法示例
+
+这些示例使用 Atlas 提供的样本数据集。你可以按照《Atlas 入门指南》将它们加载到 MongoDB Atlas 免费层的数据库中，也可以将示例数据集导入本地 MongoDB 实例中。
+
+导入数据集后，可以将使用示例复制并粘贴到你选择的开发环境中。你可以按照快速入门指南了解有关 MongoDB Java 驱动程序入门的更多信息。一旦你复制了一个使用示例，你需要编辑连接 URI 以将该示例连接到你的 MongoDB 实例：
+
+```java
+// Replace the following with your MongoDB deployment's connection string.
+String uri = "<connection string uri>";
+```
+
+你可以使用 [Atlas 连接指南](https://www.mongodb.com/docs/guides/cloud/connectionstring/)了解如何允许连接到你的 Atlas 实例，并找到在用法示例中用于替换 uri 变量的连接字符串。如果你的实例使用 [SCRAM 身份验证](https://www.mongodb.com/docs/manual/core/security-scram/)，则可以将 `<user>` 替换为用户名，将 `<password>` 替换为密码，将 `<cluster-url>` 替换为实例的 IP 地址或 url。
+
+有关连接到 MongoDB 实例的更多信息，请参阅我们的[连接指南](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/connection/)。
+
 ## 响应式流
 
 ## BSON
