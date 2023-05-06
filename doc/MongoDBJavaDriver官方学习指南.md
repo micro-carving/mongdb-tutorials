@@ -552,6 +552,251 @@ String uri = "<connection string uri>";
 
 有关连接到 MongoDB 实例的更多信息，请参阅我们的[连接指南](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/connection/)。
 
+#### 查询操作
+
+##### 查询单个文档
+
+你可以通过将一个 `MongoCollection` 对象上的 `find()` 和 `first()` 方法链接在一起来检索集合中的单个文档。你可以将查询过滤器传递给 `find()` 方法，以查询并返回集合中与过滤器匹配的文档。如果不包含过滤器，MongoDB 将返回集合中的所有文档。`first()` 方法返回第一个匹配的文档。
+
+有关使用 Java 驱动程序查询 MongoDB 的更多信息，请参阅我们的[文档查询指南](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/crud/read-operations/retrieve/)。
+
+你还可以将其他方法链接到 `find()` 方法，例如 `sort()` 按指定顺序组织匹配的文档和 `projection()` 配置返回文档中包含的字段。
+
+有关 `sort()` 方法的更多信息，请参阅我们的[排序指南](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/crud/read-operations/sort/)。有关 `projection()` 方法的更多信息，请参阅我们的 [projection 指南](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/crud/read-operations/project/)。
+
+`find()` 方法返回 `FindIterable` 的一个实例，这个类提供了几个方法来访问、组织和遍历结果。`FindIterable` 也从它的父类 `MongoIterable` 中继承方法，比如 `first()`。
+
+`first()` 方法从检索结果中返回第一个文档，如果没有结果则返回 `null`。
+
+###### 示例
+
+下面的代码片段从 `movies` 集合中找到一个文档。它使用以下对象和方法：
+
+- 传递给 `find()` 方法的**查询筛选器**。`eq` 过滤器只匹配标题与文本 “The Room” 完全匹配的电影。
+- 一种按评级降序组织匹配文档的**排序**，因此如果我们的查询匹配多个文档，则返回的文档是评级最高的文档。
+- 一个投影，包括 `title` 和 `imdb` 字段中的对象，并使用帮助器方法 `excludeId()` 排除 `_id` 字段。
+
+> **注意**
+> 
+> 此示例使用连接 URI 连接到 MongoDB 的一个实例。要了解有关连接到 MongoDB 实例的更多信息，请参阅[连接指南](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/connection/connect/#std-label-connect-to-mongodb)。
+
+```java
+package usage.examples;
+
+import static com.mongodb.client.model.Filters.eq;
+
+import org.bson.Document;
+import org.bson.conversions.Bson;
+
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Projections;
+import com.mongodb.client.model.Sorts;
+
+public class FindOne {
+
+    public static void main( String[] args ) {
+
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            Bson projectionFields = Projections.fields(
+                    Projections.include("title", "imdb"),
+                    Projections.excludeId());
+
+            Document doc = collection.find(eq("title", "The Room"))
+                    .projection(projectionFields)
+                    .sort(Sorts.descending("imdb.rating"))
+                    .first();
+
+            if (doc == null) {
+                System.out.println("No results found.");
+            } else {
+                System.out.println(doc.toJson());
+            }
+        }
+    }
+}
+```
+
+> **提示**
+> 
+> **传统 API**
+> 
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下 API 文档：
+
+- [FindIterable](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/FindIterable.html)
+- [MongoIterable](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoIterable.html)
+- [find()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#find())
+- [first()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoIterable.html#first())
+
+##### 查询多文档
+
+你可以通过调用 `MongoCollection` 对象上的 `find()` 方法来查询集合中的多个文档。将查询过滤器传递给 `find()` 方法，以查询并返回集合中与过滤器匹配的文档。如果不包含过滤器，MongoDB 将返回集合中的所有文档。
+
+有关使用 Java 驱动程序查询 MongoDB 的更多信息，请参阅我们的[文档查询指南](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/crud/read-operations/retrieve/)。
+
+你还可以将方法链接到 `find()` 方法，例如 `sort()` 按指定顺序组织匹配的文档和 `projection()` 配置返回文档中包含的字段。
+
+有关 `sort()` 方法的更多信息，请参阅我们的[排序指南](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/crud/read-operations/sort/)。有关 `projection()` 方法的更多信息，请参阅我们的[投影指南](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/crud/read-operations/project/)。
+
+`find()` 方法返回 `FindIterable` 的一个实例，这个类提供了几个方法来访问、组织和遍历结果。`FindIterable` 还继承了其父类 `MongoIterable` 的方法，后者实现了核心 Java 接口 `Iterable`。
+
+你可以在 `MongoIterable` 上调用 `iterator()` 方法，该方法返回一个 `MongoCursor` 实例，你可以使用该实例遍历结果。你可以调用 `MongoCursor` 上的方法，例如 `hasNext()` 来检查是否存在额外的结果，或者调用 `next()` 来返回集合中的下一个文档。如果没有文档匹配查询，调用 `hasNext()` 将返回 `false`，因此调用 `next()` 将抛出异常。
+
+如果在迭代器返回最终结果之后或没有结果存在时调用 `next()`，则会抛出 `java.util.NoSuchElementException` 类型的异常。在调用 `next()` 之前，总是使用 `hasNext()` 来检查是否存在其他结果。
+
+###### 示例
+
+下面的代码片段查找并打印与 `movies` 集合查询匹配的所有文档。它使用以下对象和方法：
+
+- 传递给 `find()` 方法的查询过滤器。`lt()` 过滤器只匹配运行时间少于 15 分钟的电影。
+- 按标题降序组织返回文档的排序（“Z”在“A”之前）。
+- 一个投影，它包含 `title` 和 `imdb` 字段中的对象，并使用助手方法 `excludeId()` 排除 `_id` 字段。
+
+```java
+package usage.examples;
+
+import static com.mongodb.client.model.Filters.lt;
+
+import org.bson.Document;
+import org.bson.conversions.Bson;
+
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Projections;
+import com.mongodb.client.model.Sorts;
+
+public class Find {
+    public static void main( String[] args ) {
+
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            Bson projectionFields = Projections.fields(
+                    Projections.include("title", "imdb"),
+                    Projections.excludeId());
+
+            MongoCursor<Document> cursor = collection.find(lt("runtime", 15))
+                    .projection(projectionFields)
+                    .sort(Sorts.descending("title")).iterator();
+
+            try {
+                while(cursor.hasNext()) {
+                    System.out.println(cursor.next().toJson());
+                }
+            } finally {
+                cursor.close();
+            }
+        }
+    }
+}
+```
+
+> **提示**
+>
+> **传统 API**
+>
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下 API 文档：
+
+- [FindIterable](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/FindIterable.html)
+- [MongoIterable](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoIterable.html)
+- [MongoCursor](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCursor.html)
+- [find()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#find())
+
+#### 插入操作
+
+##### 插入单个文档
+
+可以使用 `MongoCollection` 对象上的 `insertOne()` 方法将单个文档插入到集合中。要插入文档，请构造一个 `document` 对象，该对象包含要存储的字段和值。如果在一个还不存在的集合上调用 `insertOne()` 方法，服务器会自动为你创建它。
+
+插入成功后，`insertOne()` 返回 `InsertOneResult` 的一个实例。你可以通过调用 `InsertOneResult` 实例上的 `getInsertedId()` 方法来检索所插入文档的 `_id` 字段等信息。
+
+如果插入操作失败，驱动程序将引发异常。有关在特定条件下引发的异常类型的更多信息，请参阅本页底部链接的 `insertOne()` 的 API 文档。
+
+###### 示例
+
+下面的代码片段将一个文档插入到 `movies` 集合中。
+
+```java
+package usage.examples;
+
+import java.util.Arrays;
+
+import org.bson.Document;
+import org.bson.types.ObjectId;
+
+import com.mongodb.MongoException;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.result.InsertOneResult;
+
+public class InsertOne {
+    public static void main(String[] args) {
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            try {
+                InsertOneResult result = collection.insertOne(new Document()
+                        .append("_id", new ObjectId())
+                        .append("title", "Ski Bloopers")
+                        .append("genres", Arrays.asList("Documentary", "Comedy")));
+
+                System.out.println("Success! Inserted document id: " + result.getInsertedId());
+            } catch (MongoException me) {
+                System.err.println("Unable to insert due to an error: " + me);
+            }
+        }
+    }
+}
+```
+
+当你运行这个例子时，你应该看到类似于下面的输出，在 value 字段中插入文档的 `ObjectId`：
+
+```text
+Success! Inserted document id: BsonObjectId{value=...}
+```
+
+> **提示**
+>
+> **传统 API**
+>
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下 API 文档：
+
+- [insertOne()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#insertOne(TDocument))
+- [Document](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/bson/org/bson/Document.html)
+- [InsertOneResult](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/result/InsertOneResult.html)
+
+##### 插入多个文档
+
 ## 响应式流
 
 ## BSON
