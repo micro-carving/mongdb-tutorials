@@ -797,6 +797,113 @@ Success! Inserted document id: BsonObjectId{value=...}
 
 ##### 插入多个文档
 
+通过调用 `MongoCollection` 对象上的 `insertMany()` 方法，可以在单个操作中将多个文档插入到集合中。要插入它们，请将 `Document` 对象添加到 `List` 中，并将该 `List` 作为参数传递给 `insertMany()`。如果在一个还不存在的集合上调用 `insertMany()` 方法，服务器将为你创建它。
+
+插入成功后，`insertMany()` 返回 `InsertManyResult` 的一个实例。你可以通过调用 `InsertManyResult` 实例上的 `getInsertedIds()` 方法来检索所插入文档的 `_id` 字段等信息。
+
+如果插入操作失败，驱动程序将引发异常。有关在特定条件下引发的异常类型的更多信息，请参阅本页底部链接的 `insertMany()` 的 API 文档。
+
+###### 示例
+
+下面的代码片段将多个文档插入到 `movies` 集合中。
+
+```java
+package usage.examples;
+
+import java.util.Arrays;
+import java.util.List;
+
+import org.bson.Document;
+
+import com.mongodb.MongoException;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.result.InsertManyResult;
+
+public class InsertMany {
+
+    public static void main(String[] args) {
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            List<Document> movieList = Arrays.asList(
+                    new Document().append("title", "Short Circuit 3"),
+                    new Document().append("title", "The Lego Frozen Movie"));
+
+            try {
+                InsertManyResult result = collection.insertMany(movieList);
+
+                System.out.println("Inserted document ids: " + result.getInsertedIds());
+            } catch (MongoException me) {
+                System.err.println("Unable to insert due to an error: " + me);
+            }
+        }
+    }
+}
+```
+
+当你运行这个例子时，你应该看到类似于下面的输出，在每个值字段中插入文档的 `ObjectId` 值：
+
+```text
+Inserted document ids: {0=BsonObjectId{value=...}, 1=BsonObjectId{value=...}}
+```
+
+> **提示**
+>
+> **传统 API**
+>
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下 API 文档：
+
+- [insertMany()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#insertMany(java.util.List))
+- [Document](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/bson/org/bson/Document.html)
+- [InsertManyResult](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/result/InsertManyResult.html)
+
+#### 更新和替换操作
+
+##### 更新单个文档
+
+你可以使用 `MongoCollection` 对象上的 `updateOne()` 方法更新单个文档。该方法接受与要更新的文档匹配的过滤器和指示驱动程序如何更改匹配文档的更新语句。`updateOne()` 方法只更新与过滤器匹配的第一个文档。
+
+要使用 `updateOne()` 方法执行更新，必须传递一个查询过滤器和一个更新文档。查询过滤器指定要在哪个文档上执行更新的标准，更新文档提供要对其进行哪些更改的说明。
+
+为了指定方法的行为，你可以选择将 `UpdateOptions` 的实例传递给 `updateOne()` 方法。例如，如果将 `UpdateOptions` 对象的 `upsert` 字段设置为 `true`，则如果没有文档与查询过滤器匹配，则该操作将从查询和更新文档中的字段插入新文档。有关更多信息，请参阅本页底部的 `UpdateOptions` API文档的链接。
+
+成功执行后，`updateOne()` 方法返回 `UpdateResult` 的一个实例。如果在 `UpdateOptions` 实例中指定了 `upsert(true)`，则可以通过调用 `getModifiedCount()` 方法来检索诸如修改的文档数量之类的信息，或者通过调用 `getUpsertedId()` 方法来检索 `_id` 字段的值。
+
+如果更新操作失败，驱动程序将引发异常。例如，如果你试图在你的更新文档中为不可变字段 `_id` 设置一个值，该方法会抛出一个 `MongoWriteException`：
+
+```text
+Performing an update on the path '_id' would modify the immutable field '_id'
+```
+
+如果你的更新文档包含违反唯一索引规则的更改，该方法会抛出一个 `MongoWriteException`，并显示一个错误消息，看起来应该像这样：
+
+```text
+E11000 duplicate key error collection: ...
+```
+
+有关在特定条件下引发的异常类型的更多信息，请参阅本页底部链接的 `updateOne()` 的 API 文档。
+
+###### 示例
+
+在本例中，我们在 `sample_mflix` 数据库的 `movies` 集合中更新查询的第一个匹配项。我们对匹配文档执行以下更新：
+
+- 将 `runtime` 的值设置为 `99`
+- 只有在 `Sports` 还不存在的情况下，才将其添加到 `genres` 数组中
+- 将 `lastUpdated` 的值设置为当前时间。
+
+我们使用 `Updates` 构建器（一个包含静态助手方法的工厂类）来构造更新文档。虽然你可以传递更新文档而不是使用构建器，但构建器提供了类型检查和简化的语法。有关 `Updates` 构建器的详细信息，请参阅我们的[更新构建器指南](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/builders/updates/)。
+
+
 ## 响应式流
 
 ## BSON
