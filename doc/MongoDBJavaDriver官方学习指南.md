@@ -903,6 +903,215 @@ E11000 duplicate key error collection: ...
 
 我们使用 `Updates` 构建器（一个包含静态助手方法的工厂类）来构造更新文档。虽然你可以传递更新文档而不是使用构建器，但构建器提供了类型检查和简化的语法。有关 `Updates` 构建器的详细信息，请参阅我们的[更新构建器指南](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/builders/updates/)。
 
+```java
+package usage.examples;
+
+import org.bson.Document;
+import org.bson.conversions.Bson;
+
+import com.mongodb.MongoException;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.UpdateOptions;
+import com.mongodb.client.model.Updates;
+import com.mongodb.client.result.UpdateResult;
+
+public class UpdateOne {
+
+    public static void main(String[] args) {
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            Document query = new Document().append("title",  "Cool Runnings 2");
+
+            Bson updates = Updates.combine(
+                    Updates.set("runtime", 99),
+                    Updates.addToSet("genres", "Sports"),
+                    Updates.currentTimestamp("lastUpdated"));
+
+            UpdateOptions options = new UpdateOptions().upsert(true);
+
+            try {
+                UpdateResult result = collection.updateOne(query, updates, options);
+
+                System.out.println("Modified document count: " + result.getModifiedCount());
+
+                System.out.println("Upserted id: " + result.getUpsertedId()); // only contains a value when an upsert is performed
+            } catch (MongoException me) {
+                System.err.println("Unable to update due to an error: " + me);
+            }
+        }
+    }
+}
+```
+
+运行示例后，你应该看到如下所示的输出：
+
+```text
+Modified document count: 1
+Upserted id: null
+```
+
+或者是这样
+
+```text
+Modified document count: 0
+Upserted id: BsonObjectId{value=...}
+```
+
+如果你查询更新后的文档，它看起来应该是这样的：
+
+```text
+Document {
+  { _id=...,
+    plot=...,
+    genres=[Adventure, Comedy, Family, Sports],
+    runtime=99,
+    ...
+    lastUpdated=Timestamp{...}
+  }
+}
+```
+
+> **提示**
+>
+> **传统 API**
+>
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下 API 文档：
+
+- [UpdateOne](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#updateOne(org.bson.conversions.Bson,java.util.List,com.mongodb.client.model.UpdateOptions))
+- [UpdateOptions](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/UpdateOptions.html)
+- [combine](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/Updates.html#combine(org.bson.conversions.Bson...))
+- [set](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/Updates.html#set(java.lang.String,TItem))
+- [addToSet](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/Updates.html#addToSet(java.lang.String,TItem))
+- [currentTimestamp](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/Updates.html#currentTimestamp(java.lang.String))
+- [UpdateResult](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/result/UpdateResult.html)
+
+##### 更新多个文档
+
+你可以使用一个 `MongoCollection` 对象上的 `updateMany()` 方法更新多个文档。该方法接受与要更新的文档匹配的过滤器和指示驱动程序如何更改匹配文档的更新语句。`updateMany()` 方法更新集合中与过滤器匹配的所有文档。
+
+要使用 `updateMany()` 方法执行更新，必须传递一个查询过滤器和一个更新文档。查询筛选器指定要匹配集合中的哪些文档，更新文档提供对这些文档进行哪些更改的说明。
+
+你可以选择将 `UpdateOptions` 的实例传递给 `updateMany()` 方法，以便修改调用的行为。例如，如果将 `UpdateOptions` 对象的 `upsert` 字段设置为 `true`，并且没有文档与指定的查询筛选器匹配，则该操作将插入一个由来自查询和更新文档的字段组成的新文档。
+
+成功执行后，`updateMany()` 方法返回 `UpdateResult` 的一个实例。你可以通过调用 `getModifiedCount()` 方法来检索诸如被修改的文档数量之类的信息。如果在 `UpdateOptions` 对象中指定了 `upsert(true)`，并且操作的结果是插入，则可以通过调用 `UpdateResult` 实例上的 `getUpsertedId()` 方法来检索新文档的 `_id` 字段。
+
+如果更新操作失败，驱动程序将引发异常，并且不更新与过滤器匹配的任何文档。例如，如果你试图在更新文档中为不可变字段 `_id` 设置一个值，`updateMany()` 方法不会更新任何文档，并抛出一个 `MongoWriteException`：
+
+```text
+Performing an update on the path '_id' would modify the immutable field '_id'
+```
+
+如果你的更新文档包含违反唯一索引规则的更改，该方法会抛出一个 `MongoWriteException`，并显示一个错误消息，看起来应该像这样：
+
+```text
+E11000 duplicate key error collection: ...
+```
+
+有关在特定条件下引发的异常类型的更多信息，请参阅本页底部链接的 `updateMany()` 的 API 文档。
+
+###### 示例
+
+在本例中，我们在 `sample_mflix` 数据库的 `movies` 集合中更新与查询匹配的文档。我们对匹配文件进行以下更新：
+
+- 只有在不存在的情况下才将 `Frequently Discussed` 添加到 `genres` 数组中，
+- 将 `lastUpdated` 的值设置为当前时间。
+
+我们使用 `Updates` 构建器，这是一个包含静态助手方法的工厂类来构造更新文档。虽然你可以传递更新文档而不是使用构建器，但构建器提供了类型检查和简化的语法。有关更多信息，请阅读我们在构建程序部分中的[更新指南](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/builders/updates/)。
+
+```java
+package usage.examples;
+
+import static com.mongodb.client.model.Filters.gt;
+
+import org.bson.Document;
+import org.bson.conversions.Bson;
+
+import com.mongodb.MongoException;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Updates;
+import com.mongodb.client.result.UpdateResult;
+
+public class UpdateMany {
+
+    public static void main(String[] args) {
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            Bson query = gt("num_mflix_comments", 50);
+
+            Bson updates = Updates.combine(
+                    Updates.addToSet("genres", "Frequently Discussed"),
+                    Updates.currentTimestamp("lastUpdated"));
+
+            try {
+                UpdateResult result = collection.updateMany(query, updates);
+
+                System.out.println("Modified document count: " + result.getModifiedCount());
+
+            } catch (MongoException me) {
+                System.err.println("Unable to update due to an error: " + me);
+            }
+        }
+    }
+}
+```
+
+运行示例后，你应该看到如下所示的输出：
+
+```text
+Modified document count: 53
+```
+
+如果你查询更新的文档或多个文档，它们应该看起来像这样：
+
+```text
+[
+  Document {
+    { _id=...,
+      plot=...,
+      genres=[..., Frequently Discussed, ...],
+      ...
+      lastUpdated=Timestamp{...}
+    }
+  },
+  ...
+]
+```
+
+> **提示**
+>
+> **传统 API**
+>
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下 API 文档：
+
+- [updateMany](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#updateMany(org.bson.conversions.Bson,java.util.List,com.mongodb.client.model.UpdateOptions))
+- [UpdateOptions](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/UpdateOptions.html)
+- [combine](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/Updates.html#combine(org.bson.conversions.Bson...))
+- [set](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/Updates.html#set(java.lang.String,TItem))
+- [addToSet](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/Updates.html#addToSet(java.lang.String,TItem))
+- [currentTimestamp](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/Updates.html#currentTimestamp(java.lang.String))
+- [UpdateResult](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/result/UpdateResult.html)
 
 ## 响应式流
 
