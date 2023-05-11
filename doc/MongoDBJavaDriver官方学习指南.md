@@ -1113,6 +1113,609 @@ Modified document count: 53
 - [currentTimestamp](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/Updates.html#currentTimestamp(java.lang.String))
 - [UpdateResult](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/result/UpdateResult.html)
 
+##### 替换单个文档
+
+你可以使用 `MongoCollection` 对象上的 `replaceOne()` 方法替换单个文档。此方法从文档中删除所有现有字段和值（`_id` 字段除外），并用替换文档替换它。
+
+`replaceOne()` 方法接受一个与要替换的文档匹配的查询过滤器，以及一个替换文档，其中包含要保存在匹配文档的位置上的数据。`replaceOne()` 方法只替换匹配过滤器的第一个文档。
+
+你可以选择将 `ReplaceOptions` 的实例传递给 `replaceOne()` 方法，以便指定该方法的行为。例如，如果将 `ReplaceOptions` 对象的 `upsert` 字段设置为 `true`，则如果没有文档与查询过滤器匹配，则该操作将从替换文档中的字段插入新文档。有关更多信息，请参阅本页底部的 `ReplaceOptions` API 文档的链接。
+
+成功执行后，`replaceOne()` 方法返回 `UpdateResult` 的一个实例。你可以通过调用 `getModifiedCount()` 方法来检索诸如被修改的文档数量之类的信息。如果你在 `ReplaceOptions` 实例中设置了 `upsert(true)`，并且操作导致了新文档的插入，那么你还可以通过调用 `getUpsertedId()` 方法来检索文档的 `_id` 字段的值。
+
+如果你的替换操作失败，驱动程序将引发异常。例如，如果你试图在你的替换文档中指定一个与原始文档不同的不可变字段 `_id` 的值，该方法会抛出一个 `MongoWriteException`：
+
+```text
+After applying the update, the (immutable) field '_id' was found to have been altered to _id: ObjectId('...)
+```
+
+如果你的替换文档包含违反唯一索引规则的更改，该方法会抛出一个 `MongoWriteException`，并显示一条错误消息，看起来应该像这样：
+
+```text
+E11000 duplicate key error collection: ...
+```
+
+有关在特定条件下引发的异常类型的更多信息，请参阅本页底部链接的 `replaceOne()` 的 API 文档。
+
+###### 示例
+
+在本例中，我们用替换文档替换 `sample_mflix` 数据库 `movies` 集合中查询过滤器的第一个匹配项。除 `_id` 字段外的所有字段都从原始文档中删除，并由替换文档替换。
+
+在 `replaceOne()` 操作运行之前，原始文档包含几个描述电影的字段。操作运行后，生成的文档只包含替换文档指定的字段（`title` 和 `fullplot`）和 `_id` 字段。
+
+下面的代码片段使用了以下对象和方法：
+
+- 传递给 `replaceOne()` 方法的查询筛选器。`eq` 过滤器只匹配电影与标题完全匹配的文本 “`Music of the Heart`”。
+- 替换文档，其中包含替换匹配文档（如果存在）的文档。
+- 一个 `ReplaceOptions` 对象，`upsert` 选项设置为 `true`。此选项指定，如果查询过滤器不匹配任何文档，则该方法应插入替换文档中包含的数据。
+
+```java
+package usage.examples;
+
+import static com.mongodb.client.model.Filters.eq;
+
+import org.bson.Document;
+import org.bson.conversions.Bson;
+
+import com.mongodb.MongoException;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.ReplaceOptions;
+import com.mongodb.client.result.UpdateResult;
+
+public class ReplaceOne {
+
+    public static void main(String[] args) {
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            Bson query = eq("title", "Music of the Heart");
+
+            Document replaceDocument = new Document().
+                    append("title", "50 Violins").
+                    append("fullplot", " A dramatization of the true story of Roberta Guaspari who co-founded the Opus 118 Harlem School of Music");
+
+            ReplaceOptions opts = new ReplaceOptions().upsert(true);
+
+            UpdateResult result = collection.replaceOne(query, replaceDocument, opts);
+
+            System.out.println("Modified document count: " + result.getModifiedCount());
+            System.out.println("Upserted id: " + result.getUpsertedId()); // only contains a value when an upsert is performed
+
+        } catch (MongoException me) {
+            System.err.println("Unable to replace due to an error: " + me);
+        }
+    }
+}
+```
+
+运行示例后，你应该看到如下所示的输出：
+
+```text
+Modified document count: 1
+Upserted id: null
+```
+
+或者是这样
+
+```text
+Modified document count: 0
+Upserted id: BsonObjectId{value=...}
+```
+
+如果你查询被替换的文档，它看起来应该是这样的：
+
+```text
+Document {
+  { _id=...,
+    title=50 Violins,
+    fullplot=A dramatization of the true story of Roberta Guaspari who co-founded the Opus 118 Harlem School of Music
+  }
+}
+```
+
+> **提示**
+>
+> **传统 API**
+>
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下 API 文档：
+
+- [replaceOne](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#replaceOne(org.bson.conversions.Bson,TDocument))
+- [ReplaceOptions](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/ReplaceOptions.html?is-external=true)
+- [UpdateResult](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/result/UpdateResult.html)
+- [eq()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/Filters.html#eq(java.lang.String,TItem))
+
+#### 删除操作
+
+##### 删除单个文档
+
+你可以使用 `MongoCollection` 对象上的 `deleteOne()` 方法从集合中删除单个文档。该方法接受与要删除的文档匹配的查询筛选器。如果不指定过滤器，MongoDB 将匹配集合中的第一个文档。`deleteOne()` 方法只删除第一个匹配的文档。
+
+此方法返回 `DeleteResult` 的一个实例，该实例包含的信息包括由于操作而删除的文档数量。
+
+如果删除操作失败，驱动程序将引发异常。有关在特定条件下引发的异常类型的更多信息，请参阅本页底部链接的 `deleteOne()` 的 API 文档。
+
+###### 示例
+
+下面的代码片段从 `sample_mflix` 数据库的 `movies` 集合中删除一个文档。该示例使用 `eq()` 过滤器来匹配 `title` 与文本 “`The Garbage bucket Kids Movie`” 完全匹配的电影。
+
+```java
+package usage.examples;
+
+import static com.mongodb.client.model.Filters.eq;
+
+import org.bson.Document;
+import org.bson.conversions.Bson;
+
+import com.mongodb.MongoException;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.result.DeleteResult;
+
+public class DeleteOne {
+
+    public static void main(String[] args) {
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            Bson query = eq("title", "The Garbage Pail Kids Movie");
+
+            try {
+                DeleteResult result = collection.deleteOne(query);
+                System.out.println("Deleted document count: " + result.getDeletedCount());
+            } catch (MongoException me) {
+                System.err.println("Unable to delete due to an error: " + me);
+            }
+        }
+    }
+}
+```
+
+当你运行这个例子时，如果你在调用 `deleteOne()` 中传递的查询过滤器匹配了一个文档并删除了它，你应该会看到类似这样的输出：
+
+```text
+Deleted document count: 1
+```
+
+如果你的查询过滤器不匹配集合中的文档，则调用 `deleteOne()` 不删除文档并返回以下内容：
+
+```text
+Deleted document count: 0
+```
+
+> **提示**
+>
+> **传统 API**
+>
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下 API 文档：
+
+- [deleteOne](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#deleteOne(org.bson.conversions.Bson))
+- [DeleteResult](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/result/DeleteResult.html)
+- [eq()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/Filters.html#eq(java.lang.String,TItem))
+
+##### 删除多个文档
+
+通过调用一个 `MongoCollection` 对象上的 `deleteMany()` 方法，你可以在一个操作中从一个集合中删除多个文档。
+
+要指定要删除哪些文档，请传递与要删除的文档匹配的查询筛选器。如果你提供一个空文档，MongoDB 将匹配集合中的所有文档并删除它们。虽然可以使用 `deleteMany()` 删除集合中的所有文档，但考虑使用 `drop()` 方法以获得更好的性能。
+
+成功删除后，此方法返回 `DeleteResult` 的一个实例。你可以通过调用 `DeleteResult` 实例上的 `getDeletedCount()` 方法来检索信息，例如已删除的文档数量。
+
+如果删除操作失败，驱动程序将引发异常。有关在特定条件下引发的异常类型的更多信息，请参阅本页底部链接的 `deleteMany()` 的 API 文档。
+
+###### 示例
+
+下面的代码片段从 `sample_mflix` 数据库中的 `movies` 集合中删除多个文档。
+
+传递给 `deleteMany()` 方法的查询过滤器匹配 `imdb` 子文档中 `rating` 小于 **1.9** 的所有电影文档。
+
+```java
+package usage.examples;
+
+import static com.mongodb.client.model.Filters.lt;
+
+import org.bson.Document;
+import org.bson.conversions.Bson;
+
+import com.mongodb.MongoException;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.result.DeleteResult;
+
+public class DeleteMany {
+    public static void main(String[] args) {
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            Bson query = lt("imdb.rating", 1.9);
+
+            try {
+                DeleteResult result = collection.deleteMany(query);
+                System.out.println("Deleted document count: " + result.getDeletedCount());
+            } catch (MongoException me) {
+                System.err.println("Unable to delete due to an error: " + me);
+            }
+        }
+    }
+}
+```
+
+在运行示例时，你应该看到报告在调用 `deleteMany()` 时删除的文档数量的输出。
+
+```text
+Deleted document count: 4
+```
+
+> **提示**
+>
+> **传统 API**
+>
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下 API 文档：
+
+- [deleteMany](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#deleteMany(org.bson.conversions.Bson))
+- [DeleteResult](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/result/DeleteResult.html)
+- [drop()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#drop())
+
+#### 执行批量操作
+
+`bulkWrite()` 方法对*单个集合*执行批量写操作。这种方法减少了从应用程序到 MongoDB 实例的网络往返次数，从而提高了应用程序的性能。由于你只有在所有操作返回后才会收到成功状态，因此我们建议你在满足用例需求的情况下使用此状态。
+
+在 `bulkWrite()` 中可以指定以下一种或多种写操作:
+
+- `insertOne`
+- `updateOne`
+- `updateMany`
+- `deleteOne`
+- `deleteMany`
+- `replaceOne`
+
+`bulkWrite()` 方法接受以下参数：
+
+- 实现 `WriteModel` 的对象 `List`：实现 `WriteModel` 的类对应于前面提到的写操作。例如，`InsertOneModel` 类封装了 `insertOne` 写操作。有关每个类的更多信息，请参阅本页底部的 API 文档链接。
+- `BulkWriteOptions`：可选对象，指定设置，例如是否确保你的 MongoDB 实例订购你的写操作。
+
+> **注意**
+> 
+> 可重试写操作在 MongoDB 服务器 3.6 或更高版本的批量写操作中运行，除非它们包含一个或多个 `UpdateManyModel` 或 `DeleteManyModel` 实例。
+
+> **提示**
+>
+> 默认情况下，MongoDB 按照指定的顺序（即连续）逐个执行批量写操作。在有序大容量写过程中，如果某个操作在处理过程中出现错误，MongoDB 会直接返回，不处理列表中剩余的操作。相反，当你将 `ordered` 设置为 `false` 时，如果发生错误，MongoDB 将继续处理列表中剩余的写操作。无序操作理论上更快，因为 MongoDB 可以并行执行它们，但你应该只在写操作不依赖于顺序的情况下使用它们。
+
+`bulkWrite()` 方法返回一个 `BulkWriteResult` 对象，该对象包含写操作结果的信息，包括插入、修改和删除的文档数量。
+
+如果你的一个或多个操作试图设置一个违反集合上唯一索引的值，则会引发一个异常，看起来应该像这样：
+
+```text
+The bulk write operation failed due to an error: Bulk write operation error on server <hostname>. Write errors: [BulkWriteError{index=0, code=11000, message='E11000 duplicate key error collection: ... }].
+```
+
+类似地，如果你尝试对使用模式验证的集合执行批量写操作，并且你的一个或多个写操作提供了意外的格式，则可能会遇到异常。
+
+###### 示例
+
+下面的代码示例对 `sample_mflix` 数据库中的 `movies` 集合执行有序的批量写操作。对 `bulkWrite()` 的示例调用包括 `InsertOneModel`、`UpdateOneModel` 和 `DeleteOneModel` 的示例。
+
+```java
+package usage.examples;
+
+import java.util.Arrays;
+
+import org.bson.Document;
+
+import com.mongodb.MongoException;
+import com.mongodb.bulk.BulkWriteResult;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.DeleteOneModel;
+import com.mongodb.client.model.InsertOneModel;
+import com.mongodb.client.model.ReplaceOneModel;
+import com.mongodb.client.model.UpdateOneModel;
+import com.mongodb.client.model.UpdateOptions;
+
+public class BulkWrite {
+    public static void main(String[] args) {
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            try {
+                BulkWriteResult result = collection.bulkWrite(
+                        Arrays.asList(
+                                new InsertOneModel<>(new Document("name", "A Sample Movie")),
+                                new InsertOneModel<>(new Document("name", "Another Sample Movie")),
+                                new InsertOneModel<>(new Document("name", "Yet Another Sample Movie")),
+                                new UpdateOneModel<>(new Document("name", "A Sample Movie"),
+                                        new Document("$set", new Document("name", "An Old Sample Movie")),
+                                        new UpdateOptions().upsert(true)),
+                                new DeleteOneModel<>(new Document("name", "Yet Another Sample Movie")),
+                                new ReplaceOneModel<>(new Document("name", "Yet Another Sample Movie"),
+                                        new Document("name", "The Other Sample Movie").append("runtime",  "42"))
+                                ));
+
+                System.out.println("Result statistics:" +
+                        "\ninserted: " + result.getInsertedCount() +
+                        "\nupdated: " + result.getModifiedCount() +
+                        "\ndeleted: " + result.getDeletedCount());
+
+            } catch (MongoException me) {
+                System.err.println("The bulk write operation failed due to an error: " + me);
+            }
+        }
+    }
+}
+```
+
+输出应该看起来像这样：
+
+```text
+Result statistics:
+inserted: 3
+updated: 2
+deleted: 1
+```
+
+> **提示**
+>
+> **传统 API**
+>
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下参考资料：
+
+- [唯一索引](https://www.mongodb.com/docs/manual/core/index-unique/) 服务器手动输入
+- [模式验证](https://www.mongodb.com/docs/manual/core/schema-validation/) 服务器手动输入
+- [bulkWrite()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#bulkWrite(java.util.List,com.mongodb.client.model.BulkWriteOptions)) API 文档
+- [BulkWriteOptions](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/BulkWriteOptions.html) API 文档
+- [BulkWriteResult](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/bulk/BulkWriteResult.html) API 文档
+- [InsertOneModel](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/InsertOneModel.html) API 文档
+- [UpdateOneModel](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/UpdateOneModel.html) API 文档
+- [UpdateManyModel](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/UpdateManyModel.html) API 文档
+- [DeleteOneModel](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/DeleteOneModel.html) API 文档
+- [DeleteManyModel](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/DeleteManyModel.html) API 文档
+- [ReplaceOneModel](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/ReplaceOneModel.html) API 文档
+
+#### 监视数据的更改
+
+你可以通过打开更改流来跟踪 MongoDB 中数据的更改，例如对集合、数据库或部署的更改。**更改流**允许应用程序监视数据的更改并对其做出反应。
+
+变更流在发生变更时返回**变更事件**文档。更改事件包含有关已更新数据的信息。
+
+通过在 `MongoCollection`、`MongoDatabase` 或 `MongoClient` 对象上调用 `watch()` 方法打开一个变更流，如下面的代码示例所示：
+
+```java
+ChangeStreamIterable<Document> changeStream = database.watch();
+```
+
+`watch()` 方法可选地接受一个由 `stage` 数组组成的**聚合管道**作为第一个参数，以过滤和转换更改事件输出，如下所示：
+
+```java
+List<Bson> pipeline = Arrays.asList(
+                        Aggregates.match(
+                           Filters.lt("fullDocument.runtime", 15)));
+ChangeStreamIterable<Document> changeStream = database.watch(pipeline);
+```
+
+`watch()` 方法返回一个 `ChangeStreamIterable` 的实例，这个类提供了几个方法来访问、组织和遍历结果。`ChangeStreamIterable` 还继承了其父类 `MongoIterable` 的方法，后者实现了核心 Java 接口 `Iterable`。
+
+你可以在 `ChangeStreamIterable` 上调用 `forEach()` 来处理发生的事件，或者你可以使用 `iterator()` 方法，该方法返回一个 `MongoCursor` 实例，你可以使用它来遍历结果。
+
+你可以调用 `MongoCursor` 上的方法，例如 `hasNext()` 来检查是否存在额外的结果，`next()` 来返回集合中的下一个文档，或者 `tryNext()` 来立即返回更改流中的下一个可用元素或 `null`。与其他查询返回的 `MongoCursor` 不同，与更改流关联的 `MongoCursor` 将等待更改事件到达，然后再从 `next()` 返回结果。因此，使用更改流的 `MongoCursor` 调用 `next()` 永远不会抛出 `java.util.NoSuchElementException`。
+
+要配置处理从变更流返回的文档的选项，请使用 `watch()` 返回的 `ChangeStreamIterable` 对象的成员方法。有关可用方法的更多详细信息，请参阅本示例底部的 `ChangeStreamIterable` API 文档的链接。
+
+##### 如何用回调处理变更流事件
+
+要从变更流中捕获事件，请使用回调函数调用 `forEach()` 方法，如下所示：
+
+```java
+changeStream.forEach(event -> System.out.println("Change observed: " + event));
+```
+
+回调函数在发出更改事件时触发。你可以在回调中指定逻辑，以便在收到事件文档时对其进行处理。
+
+> **重要**
+> 
+> **forEach() 阻塞当前线程**
+>
+> 只要对应的更改流监听事件，调用 `forEach()` 就会阻塞当前线程。如果你的程序需要继续执行其他逻辑，例如处理请求或响应用户输入，请考虑在单独的线程中创建和侦听更改流。
+
+> **注意**
+> 
+> 对于更新操作更改事件，更改流默认情况下只返回已修改的字段，而不是整个已更新的文档。你可以通过调用 `ChangeStreamIterable` 对象的 `fullDocument()` 成员方法，将更改流配置为返回文档的最新版本。`FullDocument.UPDATE_LOOKUP` 如下所示：
+> 
+> ```java
+> ChangeStreamIterable<Document> changeStream = database.watch().fullDocument(FullDocument.UPDATE_LOOKUP);
+> ```
+
+##### 示例
+
+下面的示例使用两个独立的应用程序来演示如何使用更改流侦听更改：
+
+- 第一个应用程序名为 `Watch`，它在 `sample_mflix` 数据库中的 `movies` 集合上打开一个更改流。`Watch` 使用聚合管道根据 `operationType` 过滤更改，以便它只接收插入和更新事件（删除事件因遗漏而被排除在外）。`Watch` 使用回调来接收和打印在集合上发生的过滤后的更改事件。
+- 第二个应用程序名为 `WatchCompanion`，它将一个文档插入到 `sample_mflix` 数据库中的 `movies` 集合中。接下来，`WatchCompanion` 用一个新的字段值更新文档。最后，`WatchCompanion` 删除文档。
+
+首先，运行 `Watch` 以打开集合上的更改流，并使用 `forEach()` 方法在更改流上定义一个回调。在 `Watch` 运行时，运行 `WatchCompanion`，通过对集合执行更改来生成更改事件。
+
+`Watch`:
+
+```java
+package usage.examples;
+
+import org.bson.Document;
+import org.bson.conversions.Bson;
+
+import com.mongodb.client.ChangeStreamIterable;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.changestream.FullDocument;
+
+public class Watch {
+    public static void main( String[] args ) {
+
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            List<Bson> pipeline = Arrays.asList(
+                Aggregates.match(
+                        Filters.in("operationType",
+                                Arrays.asList("insert", "update"))));
+            ChangeStreamIterable<Document> changeStream = database.watch(pipeline)
+                .fullDocument(FullDocument.UPDATE_LOOKUP);
+            // variables referenced in a lambda must be final; final array gives us a mutable integer
+            final int[] numberOfEvents = {0};
+            changeStream.forEach(event -> {
+            System.out.println("Received a change to the collection: " + event);
+                if (++numberOfEvents[0] >= 2) {
+                  System.exit(0);
+                }
+            });
+        }
+    }
+}
+```
+
+`WatchCompanion`:
+
+```java
+package usage.examples;
+
+import java.util.Arrays;
+
+import org.bson.Document;
+import org.bson.types.ObjectId;
+
+import com.mongodb.MongoException;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.result.InsertOneResult;
+
+public class WatchCompanion {
+    public static void main(String[] args) {
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            try {
+                InsertOneResult insertResult = collection.insertOne(new Document("test", "sample movie document"));
+                System.out.println("Success! Inserted document id: " + insertResult.getInsertedId());
+
+                UpdateResult updateResult = collection.updateOne(new Document("test", "sample movie document"), Updates.set("field2", "sample movie document update"));
+                System.out.println("Updated " + updateResult.getModifiedCount() + " document.");
+
+                DeleteResult deleteResult = collection.deleteOne(new Document("field2", "sample movie document update"));
+                System.out.println("Deleted " + deleteResult.getDeletedCount() + " document.");
+            } catch (MongoException me) {
+                System.err.println("Unable to insert, update, or replace due to an error: " + me);
+            }
+        }
+    }
+}
+```
+
+如果按顺序运行上述应用程序，你应该看到 `Watch` 应用程序的输出类似于以下内容。只有 `insert` 和 `update` 操作被打印出来，因为聚合管道过滤掉了删除操作：
+
+```text
+Received a change to the collection: ChangeStreamDocument{
+  operationType=OperationType{value='insert'},
+  resumeToken={"_data": "825E..."},
+  namespace=sample_mflix.movies,
+  destinationNamespace=null,
+  fullDocument=Document{{_id=5ec3..., test=sample movie document}},
+  documentKey={"_id": {"$oid": "5ec3..."}},
+  clusterTime=Timestamp{...},
+  updateDescription=null,
+  txnNumber=null,
+  lsid=null,
+  wallTime=BsonDateTime{value=1657...}
+}
+Received a change to the collection: ChangeStreamDocument{
+  operationType=OperationType{value='update'},
+  resumeToken={"_data": "825E..."},
+  namespace=sample_mflix.movies,
+  destinationNamespace=null,
+  fullDocument=Document{{_id=5ec3..., test=sample movie document, field2=sample movie document update}},
+  documentKey={"_id": {"$oid": "5ec3..."}},
+  clusterTime=Timestamp{...},
+  updateDescription=UpdateDescription{removedFields=[], updatedFields={"field2": "sample movie document update"}},
+  txnNumber=null,
+  lsid=null,
+  wallTime=BsonDateTime{value=1657...}
+}
+```
+
+你还应该看到 `WatchCompanion` 应用程序的输出类似于以下内容：
+
+```text
+Success! Inserted document id: BsonObjectId{value=5ec3...}
+Updated 1 document.
+Deleted 1 document.
+```
+
+> **提示**
+>
+> **传统 API**
+>
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下参考资料：
+
+- [改变流](https://www.mongodb.com/docs/manual/changeStreams/) 服务器手动输入
+- [更改事件](https://www.mongodb.com/docs/manual/reference/change-events/) 服务器手动输入
+- [聚合管道](https://www.mongodb.com/docs/manual/reference/operator/aggregation-pipeline/) 服务器手动输入
+- [聚合阶段](https://www.mongodb.com/docs/manual/changeStreams/#modify-change-stream-output) 服务器手动输入
+- [ChangeStreamIterable](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/ChangeStreamIterable.html) API文档
+- [MongoCollection.watch()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#watch()) API文档
+- [MongoDatabase.watch()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoDatabase.html#watch()) API文档
+- [MongoClient.watch()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoClient.html#watch()) API文档
+
 ## 响应式流
 
 ## BSON
