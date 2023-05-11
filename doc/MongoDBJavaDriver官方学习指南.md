@@ -1716,6 +1716,298 @@ Deleted 1 document.
 - [MongoDatabase.watch()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoDatabase.html#watch()) API文档
 - [MongoClient.watch()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoClient.html#watch()) API文档
 
+#### 文档计数
+
+在 `MongoCollection` 类中有两个实例方法，你可以调用它们来计算集合中的文档数量：
+
+- `countDocuments()` 返回集合中与指定查询匹配的文档数。如果指定空查询筛选器，该方法将返回集合中文档的总数。
+- `estimatedDocumentCount()` 根据集合元数据返回集合中文档数量的**估计值**。使用此方法时，不能指定查询。
+
+`estimatedDocumentCount()` 方法的返回速度比 `countDocuments()` 方法快，因为它使用集合的元数据，而不是扫描整个集合。`countDocuments()` 方法返回文档数量的**精确**计数，并支持指定过滤器。
+
+> **提示**
+> 
+> 当使用 `countDocuments()` 返回集合中文档的总数时，可以通过避免集合扫描来提高性能。为此，使用一个[提示](https://www.mongodb.com/docs/manual/reference/method/cursor.hint/)来利用 `_id` 字段上的内置索引。只有在使用空查询参数调用 `countDocuments()` 时才使用此技术。
+> 
+> ```java
+> CountOptions opts = new CountOptions().hintString("_id_");
+> long numDocuments = collection.countDocuments(new BsonDocument(), opts);
+> ```
+
+当你调用 `countDocuments()` 方法时，你可以选择传递一个查询筛选器参数。当调用 `estimatedDocumentCount()` 时，不能传递任何参数。
+
+> **重要**
+> 
+> **稳定API V1和MongoDB服务器版本**
+> 
+> 如果你使用的是带有 “strict” 选项的稳定 API `V1` 和包含 5.0.0 和 5.0.8 之间的 MongoDB 服务器版本，则由于服务器错误，对 `estimatedDocumentCount()` 的方法调用可能会出错。
+>
+> 升级到 MongoDB Server 5.0.9 或将稳定 API “strict” 选项设置为 `false` 以避免此问题。
+
+你也可以给这些方法传递一个可选参数来指定调用的行为：
+
+| 方法                         | 可选参数类                           | 描述                                                         |
+|----------------------------|---------------------------------|------------------------------------------------------------|
+| `countDocuments()`         | `CountOptions`                  | 可以使用 `limit()` 方法指定要统计的最大文档数，也可以使用 `maxTime()` 方法指定最大执行时间。 |
+| `estimatedDocumentCount()` | `EstimatedDocumentCountOptions` | 你可以使用 `maxTime()` 方法指定最大执行时间。                              |
+
+这两种方法都以原生的 `long` 的形式返回匹配的文档数。
+
+##### 示例
+
+下面的示例估计 `sample_mflix` 数据库中 `movies` 集合中的文档数量，然后返回 `movies` 集合中文档数量的准确计数，`Canada` 位于 `countries` 字段中。
+
+```java
+package usage.examples;
+
+import static com.mongodb.client.model.Filters.eq;
+
+import org.bson.Document;
+import org.bson.conversions.Bson;
+
+import com.mongodb.MongoException;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+
+public class CountDocuments {
+    public static void main(String[] args) {
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            Bson query = eq("countries", "Spain");
+
+            try {
+                long estimatedCount = collection.estimatedDocumentCount();
+                System.out.println("Estimated number of documents in the movies collection: " + estimatedCount);
+
+                long matchingCount = collection.countDocuments(query);
+                System.out.println("Number of movies from Spain: " + matchingCount);
+            } catch (MongoException me) {
+                System.err.println("An error occurred: " + me);
+            }
+        }
+    }
+}
+```
+
+如果你运行前面的示例代码，你应该看到类似这样的输出（确切的数字可能会根据你的数据而变化）：
+
+```text
+Estimated number of documents in the movies collection: 23541
+Number of movies from Spain: 755
+```
+
+> **提示**
+>
+> **传统 API**
+>
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下参考 API 文档：
+
+- [countDocuments()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#countDocuments())
+- [estimatedDocumentCount()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#estimatedDocumentCount())
+- [CountOptions](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/CountOptions.html)
+- [EstimatedDocumentCountOptions](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/client/model/EstimatedDocumentCountOptions.html)
+
+#### 检索字段的不同值
+
+通过调用 `MongoCollection` 对象上的 `distinct()` 方法，可以检索跨集合的字段的不同值列表。传递文档字段名作为第一个参数，传递你想要转换结果的类作为第二个参数，如下所示：
+
+```java
+collection.distinct("countries", String.class);
+```
+
+可以使用**点表示法**指定文档上的字段或**嵌入文档**中的字段。下面的方法调用返回 `awards` 嵌入文档中 `wins` 字段的每个不同值：
+
+```java
+collection.distinct("awards.wins", Integer.class);
+```
+
+你可以选择传递一个查询过滤器的方法来限制文档的集合，从你的 MongoDB 实例检索不同的值如下：
+
+```java
+collection.distinct("type", Filters.eq("languages", "French"), String.class);
+```
+
+`distinct()` 方法返回一个实现了 `DistinctIterable` 接口的对象。该接口包含访问、组织和遍历结果的方法。它还继承了父接口 `MongoIterable` 的方法，例如返回第一个结果的 `first()` 和返回一个 `MongoCursor` 实例的 `cursor()`。
+
+##### 示例
+
+下面的代码片段从 `movies` 集合中检索 `year` 文档字段的不同值列表。它使用一个查询过滤器来匹配包含 “Carl Franklin” 作为 `directors` 数组中的值之一的电影。
+
+```java
+package usage.examples;
+
+import org.bson.Document;
+
+import com.mongodb.MongoException;
+import com.mongodb.client.DistinctIterable;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Filters;
+
+public class Distinct {
+    public static void main(String[] args) {
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+            MongoCollection<Document> collection = database.getCollection("movies");
+
+            try {
+                DistinctIterable<Integer> docs = collection.distinct("year", Filters.eq("directors", "Carl Franklin"), Integer.class);
+                MongoCursor<Integer> results = docs.iterator();
+
+                while(results.hasNext()) {
+                    System.out.println(results.next());
+                }
+            } catch (MongoException me) {
+                System.err.println("An error occurred: " + me);
+            }
+        }
+    }
+}
+```
+
+当你运行这个例子时，你应该看到输出，报告了卡尔·富兰克林作为导演的所有电影的每个不同的年份，它应该看起来像这样：
+
+```text
+1992
+1995
+1998
+...
+```
+
+> **提示**
+>
+> **传统 API**
+>
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下资料：
+
+- [distinct()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoCollection.html#distinct(java.lang.String,java.lang.Class)) API 文档
+- [DistinctIterable](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/DistinctIterable.html) API 文档
+- [Dot Notation](https://www.mongodb.com/docs/manual/core/document/#embedded-documents) 服务器手动输入
+- [MongoIterable](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoIterable.html) API 文档
+
+#### 执行命令
+
+你可以使用 `MongoDatabase.runCommand()` 方法运行所有原始数据库操作。原始数据库操作是可以直接在 MongoDB Server 命令行上执行的命令。这些命令包括管理和诊断任务，例如获取服务器状态或初始化副本集。在一个 `MongoDatabase` 实例上用一个 `Bson` 命令对象调用 `runCommand()` 方法来运行原始数据库操作。
+
+> **提示**
+> 
+> 尽可能使用 [MongoDB Shell](https://www.mongodb.com/docs/mongodb-shell/) 来完成管理任务，而不是 Java 驱动程序，因为使用 Shell 通常比在 Java 应用程序中更快更容易实现这些任务。
+
+`runCommand()` 方法接受 `Bson` 对象形式的命令。默认情况下，`runCommand` 返回一个 `org.bson.Document` 类型的对象，其中包含数据库命令的输出。你可以为 `runCommand()` 指定返回类型，作为第二个可选参数。
+
+##### 示例
+
+在下面的示例代码中，我们发送 `dbStats` 命令来请求来自特定 MongoDB 数据库的统计信息。
+
+```java
+package usage.examples;
+
+import org.bson.BsonDocument;
+import org.bson.BsonInt64;
+import org.bson.Document;
+
+import com.mongodb.ConnectionString;
+import com.mongodb.MongoClientSettings;
+import com.mongodb.MongoException;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoDatabase;
+
+
+public class RunCommand {
+    public static void main(String[] args) {
+        // Replace the uri string with your MongoDB deployment's connection string
+        String uri = "<connection string uri>";
+
+        try (MongoClient mongoClient = MongoClients.create(uri)) {
+
+            MongoDatabase database = mongoClient.getDatabase("sample_mflix");
+
+            try {
+                Bson command = new BsonDocument("dbStats", new BsonInt64(1));
+                Document commandResult = database.runCommand(command);
+                System.out.println("dbStats: " + commandResult.toJson());
+            } catch (MongoException me) {
+                System.err.println("An error occurred: " + me);
+            }
+        }
+    }
+}
+```
+
+运行上述命令后，输出信息如下所示：
+
+```text
+dbStats: {"db": "sample_mflix", "collections": 5, "views": 0, "objects": 75595, "avgObjSize": 692.1003770090614, "dataSize": 52319328, "storageSize": 29831168, "numExtents": 0, "indexes": 9, "indexSize": 14430208, "fileSize": 0, "nsSizeMB": 0, "ok": 1}
+```
+
+> **提示**
+>
+> **传统 API**
+>
+> 如果你使用的是旧版 API，请参阅我们的[常见问题](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-faq-legacy-connection)页面，了解需要对此代码示例进行哪些更改。
+
+有关本页中提到的类和方法的其他信息，请参阅以下资料：
+
+- [runCommand()](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-sync/com/mongodb/client/MongoDatabase.html#runCommand(org.bson.conversions.Bson)) API 文档
+- [数据库命令](https://www.mongodb.com/docs/manual/reference/command/) 服务器手动输入
+- [dbStats](https://www.mongodb.com/docs/manual/reference/command/dbStats/) 服务器手动输入
+
+### 基础知识
+
+#### 连接指南
+
+##### 连接到 MongoDB
+
+在本指南中，你可以学习如何使用 Java 驱动程序连接到 MongoDB 实例或副本集。
+
+你可以查看[连接到 Atlas 集群](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/connection/connect/#std-label-connect-atlas-java-driver)的示例代码，或者继续阅读以了解更多关于 `MongoClient` 类和连接 uri 的信息。
+
+###### MongoClient
+
+你可以使用 `MongoClient` 类连接到 MongoDB 并与之通信。
+
+使用 `MongoClients.create()` 方法构造一个 `MongoClient`。
+
+> **重要**
+> 
+> **客户端复用**
+> 
+> 由于每个 `MongoClient` 代表一个线程安全的数据库连接池，因此大多数应用程序只需要一个 `MongoClient` 实例，即使跨多个线程也是如此。要了解有关连接池在驱动程序中如何工作的更多信息，请参阅 [FAQ 页面](https://www.mongodb.com/docs/drivers/java/sync/current/faq/#std-label-java-faq-connection-pool)。
+
+所有资源使用限制（例如最大连接数）都适用于单个 `MongoClient` 实例。
+
+要了解用于控制 `MongoClient` 行为的不同设置，请参阅关于 [`MongoClient` 设置](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/connection/mongoclientsettings/#std-label-specify-mongoclient-settings)的指南。
+
+> **提示**
+> 
+> 当一个实例不再需要时，总是调用 `MongoClient.close()` 来清理资源。
+
+###### 连接 URI
+
+**连接 URI** 提供了一组指令，驱动程序使用这些指令连接到 MongoDB 部署。它指示驱动程序应该如何连接到 MongoDB 以及它在连接时应该如何表现。下图解释了示例连接 URI 的每个部分：
+
+![MongoDBConnectURI](./assets/MongoDBConnectURI.png)
+
 ## 响应式流
 
 ## BSON
