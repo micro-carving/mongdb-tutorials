@@ -2008,6 +2008,134 @@ dbStats: {"db": "sample_mflix", "collections": 5, "views": 0, "objects": 75595, 
 
 ![MongoDBConnectURI](./assets/MongoDBConnectURI.png)
 
+该图使用[标准连接字符串格式](https://www.mongodb.com/docs/manual/reference/connection-string/#std-label-connections-standard-connection-string-format)，`mongodb` 为协议。你也可以使用 [DNS 种子列表连接格式](https://www.mongodb.com/docs/manual/reference/connection-string/#dns-seed-list-connection-format)，`mongodb+srv`，如果你想要更灵活的部署和轮换服务器的能力，而不需要重新配置客户端。
+
+> **注意**
+> 
+> 如果部署在 MongoDB Atlas 上，请参见 [Atlas 驱动程序连接指南](https://www.mongodb.com/docs/atlas/driver-connection/?jmp=docs_driver_java)，并从语言下拉列表中选择 Java 来检索你的连接字符串。
+
+如果使用基于密码的身份验证机制，连接 URI 的下一部分包含你的凭据。将 `user` 的值替换为你的用户名，并将 `pass` 替换为你的密码。如果你的身份验证机制不需要凭据，则省略连接 URI 的这一部分。
+
+连接 URI 的下一部分指定主机名或 IP 地址，后面是 MongoDB 实例的端口。在示例中，`sample.host` 表示主机名，`27017` 是端口号。替换这些值以引用你的 MongoDB 实例。
+
+连接 URI 的最后一部分包含连接选项作为参数。在本例中，我们设置了两个连接选项：`maxPoolSize=20` 和 `w=majority`。有关连接选项的更多信息，请跳到本指南的 “[连接选项](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/connection/connection-options/#std-label-connection-options)” 部分。
+
+###### Atlas 连接示例
+
+要连接到 Atlas 上的 MongoDB 部署，需要创建一个客户端。你可以通过向 `MongoClients.create()` 方法传递一个 `MongoClientSettings` 对象来创建一个使用连接字符串和其他客户端选项的客户端。
+
+要实例化一个 `MongoClientSettings` 对象，使用 builder 方法指定连接字符串和任何其他客户端选项，然后调用 `build()` 方法。将 `applyConnectionString()` 方法链接到构建器以指定连接 URI。
+
+你可以设置稳定 API 版本客户端选项，以避免在升级到新版本的 MongoDB Server 时发生破坏性更改。要了解有关稳定 API 特性的更多信息，请参阅[稳定 API 页面](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/stable-api/#std-label-stable-api-java)。
+
+下面的代码展示了如何在连接到 Atlas 上的 MongoDB 部署时指定连接字符串和稳定 API 客户端选项，并验证连接是否成功：
+
+```java
+package fundamentals;
+
+import com.mongodb.*;
+import org.bson.BsonDocument;
+import org.bson.BsonInt64;
+import org.bson.Document;
+import org.bson.conversions.Bson;
+
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoDatabase;
+
+public class MongoClientConnectionExample {
+    public static void main(String[] args) {
+        // Replace the placeholder with your Atlas connection string
+        String uri = "<connection string>";
+
+        // Construct a ServerApi instance using the ServerApi.builder() method
+        ServerApi serverApi = ServerApi.builder()
+                .version(ServerApiVersion.V1)
+                .build();
+
+        MongoClientSettings settings = MongoClientSettings.builder()
+                .applyConnectionString(new ConnectionString(uri))
+                .serverApi(serverApi)
+                .build();
+
+        // Create a new client and connect to the server
+        try (MongoClient mongoClient = MongoClients.create(settings)) {
+            MongoDatabase database = mongoClient.getDatabase("admin");
+            try {
+                // Send a ping to confirm a successful connection
+                Bson command = new BsonDocument("ping", new BsonInt64(1));
+                Document commandResult = database.runCommand(command);
+                System.out.println("Pinged your deployment. You successfully connected to MongoDB!");
+            } catch (MongoException me) {
+                System.err.println(me);
+            }
+        }
+    }
+}
+```
+
+###### 连接 MongoDB 的其他方式
+
+如果你要连接到不在 Atlas 上托管的单个 MongoDB 部署或副本集，请参阅以下部分以了解如何连接。
+
+- 连接到本地机器上部署的 MongoDB
+
+如果出于开发目的，你需要在本地机器上运行部署的 MongoDB ，而不是使用 Atlas 集群，则需要完成以下操作：
+
+1. 下载[社区版](https://www.mongodb.com/try/download/community)或[企业版](https://www.mongodb.com/try/download/enterprise) MongoDB Server。
+2. [安装和配置](https://www.mongodb.com/docs/manual/installation/#std-label-tutorials-installation) MongoDB Server。
+3. 启动部署。
+
+> **重要**
+> 
+> 始终保护你的 MongoDB 部署免受恶意攻击。有关安全性建议的列表，请参阅我们的[安全性检查表](https://www.mongodb.com/docs/manual/administration/security-checklist/)。
+
+成功启动部署的 MongoDB 后，在驱动程序连接代码中指定连接字符串。
+
+如果你的 MongoDB 部署在本地运行，你可以使用连接字符串 `"mongoDB://localhost:<port>"` ，其中 `<port>` 是你配置服务器以侦听传入连接的端口号。
+
+如果你需要指定不同的主机名或 IP 地址，请参阅服务器手册中的[连接字符串](https://www.mongodb.com/docs/manual/reference/connection-string/)条目。
+
+要测试是否可以连接到部署，请替换[连接到 MongoDB 的 Atlas](https://www.mongodb.com/docs/drivers/java/sync/current/fundamentals/connection/connect/#std-label-connect-atlas-java-driver) 代码示例并运行它。
+
+- 连接到副本集
+
+MongoDB 副本集部署是一组存储相同数据集的连接实例。这种实例配置提供了数据冗余和高数据可用性。
+
+要连接到部署的副本集，请指定副本集成员的主机名（或 IP 地址）和端口号。
+
+如果你不能提供副本集中主机的完整列表，你可以指定副本中主机的单个或子集，并指示驱动程序以以下方式之一执行自动发现：
+
+- 指定副本集的名称作为 `replicaSet` 参数的值
+- 将 `directConnection` 参数的值指定为 `false`
+- 在副本集中指定多个主机
+
+> **提示**
+> 
+> 虽然你可以在副本集中指定主机的一个子集，但要包括副本集中的所有主机，以确保如果其中一个主机不可达，驱动程序能够建立连接。
+
+下面的示例展示了如何使用 `ConnectionString` 或 `MongoClientSettings` 类为一个 `MongoClient` 实例指定多个主机。选择与首选类对应的选项卡。
+
+`ConnectionString`：
+
+```java
+ConnectionString connectionString = new ConnectionString("mongodb://host1:27017,host2:27017,host3:27017/");
+MongoClient mongoClient = MongoClients.create(connectionString);
+```
+
+`MongoClientSettings`：
+
+```java
+ServerAddress seed1 = new ServerAddress("host1", 27017);
+ServerAddress seed2 = new ServerAddress("host2", 27017);
+ServerAddress seed3 = new ServerAddress("host3", 27017);
+MongoClientSettings settings = MongoClientSettings.builder()
+        .applyToClusterSettings(builder ->
+               builder.hosts(Arrays.asList(seed1, seed2, seed3)))
+        .build();
+MongoClient mongoClient = MongoClients.create(settings);
+```
+
 ## 响应式流
 
 ## BSON
