@@ -2136,6 +2136,48 @@ MongoClientSettings settings = MongoClientSettings.builder()
 MongoClient mongoClient = MongoClients.create(settings);
 ```
 
+#### 连接选项
+
+本节解释驱动程序支持的 MongoDB 连接和身份验证选项。你可以将连接选项作为连接 URI 的参数传递，以指定客户机的行为。
+
+| 选项名称                     | 类型                | 描述                                                                                                                                                                    |
+|--------------------------|-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| minPoolSize              | integer           | 指定单个连接池中任何时刻必须存在的最小连接数。默认值：`0`                                                                                                                                        |
+| maxPoolSize              | integer           | 指定连接池在给定时间内可能具有的最大连接数。默认值：`100`                                                                                                                                       |
+| waitQueueTimeoutMS       | integer           | 指定线程等待连接变为可用的最大时间，以毫秒为单位。默认值：`120000`(120秒)                                                                                                                           |
+| serverSelectionTimeoutMS | integer           | 指定驱动程序在抛出异常之前等待服务器选择成功的最大时间（以毫秒为单位）。默认值：`30000`（30秒）                                                                                                                  |
+| localThresholdMS         | integer           | 当与副本集中的多个 MongoDB 实例通信时，驱动程序只会将请求发送到响应时间小于或等于响应时间最快的服务器加上本地阈值的服务器（以毫秒为单位）。默认值：`15`                                                                                    |
+| heartbeatFrequencyMS     | integer           | 指定驱动程序在尝试确定集群中每个服务器的当前状态之间等待的频率（以毫秒为单位）。默认值：`10000`（10秒）                                                                                                              |
+| replicaSet               | string            | 指定提供的连接字符串包括多个主机。当指定时，驱动程序会尝试查找该集合的所有成员。默认值：`null`                                                                                                                    |
+| ssl                      | boolean           | 指定与 MongoDB 实例的所有通信都应使用 TLS/SSL。被 **tls** 选项取代。默认值：`false`                                                                                                            |
+| tls                      | boolean           | 指定与 MongoDB 实例的所有通信都应使用 TLS。取代 **ssl** 选项。默认值：`false`                                                                                                                 |
+| tlsInsecure              | boolean           | 指定驱动程序应允许 TLS 连接使用无效的主机名。与将 **tlsAllowInvalidHostnames** 设置为 `true` 具有相同的效果。要以其他方式配置 TLS 安全约束，请使用自定义 SSLContext。默认值：`false`                                           |
+| tlsAllowInvalidHostnames | boolean           | 指定驱动程序应允许 TLS 连接的证书中包含无效主机名。取代 **sslInvalidHostNameAllowed**。默认值：`false`                                                                                              |
+| connectTimeoutMS         | integer           | 指定 Java 驱动程序在超时之前等待连接打开的最长时间（以毫秒为单位）。值 `0` 指示驱动程序在等待打开连接时永远不要超时。默认值：`10000`（10秒）                                                                                      |
+| socketTimeoutMS          | integer           | 指定 Java 驱动程序在超时之前等待发送或接收请求的最长时间（以毫秒为单位）。值 `0` 指示驱动程序在等待发送或接收请求时永远不要超时。默认值：`0`                                                                                         |
+| maxIdleTimeMS            | integer           | 指定 Java 驱动程序在关闭连接之前允许池连接空闲的最长时间（以毫秒为单位）。值 `0` 表示驱动程序允许池集合空闲的时间没有上限。默认值：`0`                                                                                            |
+| maxLifeTimeMS            | integer           | 指定 Java 驱动程序在关闭连接之前继续使用池连接的最长时间（以毫秒为单位）。值 `0` 表示驱动程序可以保持池连接打开的时间没有上限。默认值：`0`                                                                                          |
+| journal                  | boolean           | 指定驱动程序必须等待连接的 MongoDB 实例将提交分组到磁盘上的日志文件以进行所有写入。默认值：`false`                                                                                                             |
+| w                        | string 或者 integer | 指定写入问题。有关值的更多信息，请参阅 [w 选项](https://www.mongodb.com/docs/manual/reference/write-concern/#w-option)的服务器文档。默认值：`1`                                                       |
+| wtimeoutMS               | integer           | 指定写入问题的时间限制（以毫秒为单位）。有关详细信息，请参阅 [wtimeoutMS 选项](https://www.mongodb.com/docs/manual/reference/connection-string/#write-concern-options)。值 `0` 指示驱动程序永远不要超时写入操作。默认值：`0` |
+| readPreference           | string            | 指定读取首选项。有关值的更多信息，请参阅 [readPreference 选项](https://www.mongodb.com/docs/manual/reference/connection-string/#urioption.readPreference)的服务器文档。默认值：`primary`               |
+| readPreferenceTags       | string            | 指定读取首选项标记。有关值的更多信息，请参阅 [readPreferenceTags 选项](https://www.mongodb.com/docs/manual/reference/connection-string/#urioption.readPreferenceTags)。默认值：`null`              |
+| maxStalenessSeconds      | integer           | 以秒为单位，指定在驱动程序停止与辅助设备通信之前，辅助设备的过时程度。最小值为 `90` 秒或心跳频率加 `10` 秒，以较大者为准。有关详细信息，请参阅 maxStalenessSeconds 选项。不提供参数或显式指定 `-1` 表示不应该对次级进行过时检查。默认值：`-1`                          |
+| authMechanism            | string            | 指定在提供凭据时驱动程序应使用的身份验证机制。默认设置：默认情况下，客户端会根据服务器版本选择最安全的机制。有关可能的值，请参阅 authMechanism 选项。                                                                                    |
+| authSource               | string            | 指定应验证所提供凭据的数据库。默认值：`admin`                                                                                                                                            |
+| authMechanismProperties  | string            | 将指定身份验证机制的身份验证属性指定为以冒号分隔的属性和值的列表。有关更多信息，请参阅 `authMechanismProperties` 选项的服务器文档。默认值：`null`                                                                             |
+| appName                  | string            | 指定在连接握手期间提供给 MongoDB 实例的应用程序的名称。可用于服务器日志和分析。默认值：`null`                                                                                                                |
+| compressors              | string            | 指定一个或多个压缩算法，驱动程序将尝试使用这些算法来压缩发送到连接的 MongoDB 实例的请求。可能的值包括：`zlib`、`snappy` 和 `zstd`。默认值：`null`                                                                           |
+| zlibCompressionLevel     | integer           | 指定 Zlib 应用于减少对连接的 MongoDB 实例的请求大小的压缩程度。级别可以在 -1 到 9 之间，较低的值压缩得更快（但会产生更大的请求），较大的值压缩的更慢（但会导致更小的请求）。默认值：`null`                                                           |
+| retryWrites              | boolean           | 指定如果由于网络错误导致支持的写入操作失败，驱动程序必须重试这些操作。默认值：`true`                                                                                                                         |
+| retryReads               | boolean           | 指定如果支持的读取操作由于网络错误而失败，则驱动程序必须重试这些操作。默认值：`true`                                                                                                                         |
+| uuidRepresentation       | string            | 指定用于读取和写入操作的 UUID 表示形式。有关更多信息，请参阅 `MongoClientSettings.getUuidRepresentation()` 方法的驱动程序文档。默认值：`unspecified`                                                           |
+| directConnection         | boolean           | 指定驱动程序必须直接连接到主机。默认值：`false`                                                                                                                                           |
+| maxConnecting            | integer           | 指定池可以同时建立的最大连接数。默认值：`2`                                                                                                                                               |
+| srvServiceName           | string            | 指定驱动程序为构造种子列表而检索的 SRV 资源记录的服务名称。你必须在连接 URI 中使用 DNS 种子列表连接格式才能使用此选项。默认值：`mongodb`                                                                                      |
+
+有关选项的完整列表，请参阅 [ConnectionString](https://mongodb.github.io/mongo-java-driver/4.9/apidocs/mongodb-driver-core/com/mongodb/ConnectionString.html) API 参考页。
+
 ## 响应式流
 
 ## BSON
